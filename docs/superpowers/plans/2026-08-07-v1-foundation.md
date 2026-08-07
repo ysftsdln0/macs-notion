@@ -204,7 +204,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/macs_test
       AUTH_SECRET: ci-only-not-a-real-secret
-      AUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3100
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -222,7 +222,7 @@ jobs:
 ```bash
 DATABASE_URL=postgresql://macs:macs@localhost:5432/macs
 AUTH_SECRET=
-AUTH_URL=http://localhost:3000
+AUTH_URL=http://localhost:3100
 AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
 ```
@@ -2957,7 +2957,7 @@ async function main() {
       expiresAt: new Date(Date.now() + 7 * 864e5), createdById: admin.id,
     },
   })
-  console.log(`Davet linki: http://localhost:3000/invite/${token}`)
+  console.log(`Davet linki: http://localhost:3100/invite/${token}`)
 }
 
 main().finally(() => db.$disconnect())
@@ -3138,7 +3138,7 @@ volumes:
 
 > `collab` servisi Plan 2'de bu dosyaya eklenir.
 
-**Güvenlik notu:** `E2E_AUTH_BYPASS` bu dosyada hiçbir yerde geçmez ve deploy workflow'u onu geçirmez. Bu değişken production'da set edilirse kimlik doğrulama tamamen devre dışı kalır.
+**Güvenlik notu:** uygulamada test amaçlı giriş yolu yoktur — tek kimlik sağlayıcısı Google'dır. E2E testleri `Session` tablosuna satır yazarak giriş yapar; bu yol yalnızca test sürecinde, veritabanına doğrudan erişimle mümkündür ve production kodunda karşılığı bulunmaz.
 
 - [ ] **Step 2: `Caddyfile` yaz**
 
