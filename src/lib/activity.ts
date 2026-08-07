@@ -10,6 +10,7 @@ export async function recordActivity(
     entityType: string
     entityId: string
     meta?: Prisma.InputJsonValue
+    channelId?: string | null
   },
 ): Promise<void> {
   await client.activity.create({ data: entry })

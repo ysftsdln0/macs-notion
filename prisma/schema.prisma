@@ -143,10 +143,12 @@ model Activity {
   entityType String
   entityId   String
   meta       Json?
+  channelId  String?
   createdAt  DateTime @default(now())
 
   actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
   @@index([entityType, entityId])
+  @@index([channelId])
 }

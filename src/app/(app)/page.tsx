@@ -1,10 +1,17 @@
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
+import { listVisibleChannels } from '@/server/channels-query'
 import { EmptyState } from '@/components/state/empty-state'
 
 export default async function HomePage() {
   await requireActor()
+  // channelId null → kulüp geneli hareket, herkese görünür. channelId
+  // doluysa yalnızca aktörün görebildiği kanallara ait hareketler listelenir
+  // — PRIVATE bir kanaldaki üye eklenmesi bu kanalın dışındakine sızmaz.
+  const visibleChannels = await listVisibleChannels()
+  const visibleChannelIds = visibleChannels.map((c) => c.id)
   const activities = await db.activity.findMany({
+    where: { OR: [{ channelId: null }, { channelId: { in: visibleChannelIds } }] },
     orderBy: { createdAt: 'desc' },
     take: 30,
     include: { actor: { select: { name: true } } },

@@ -18,7 +18,8 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   },
 }))
 
-const { addChannelMember, createChannel, listVisibleChannels } = await import('@/server/channels')
+const { addChannelMember, createChannel, removeChannelMember } = await import('@/server/channels')
+const { listVisibleChannels } = await import('@/server/channels-query')
 
 let admin: { id: string }
 let plain: { id: string }
@@ -66,6 +67,20 @@ describe('createChannel', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
   })
+
+  it('bir kanalda LEAD olan düz kullanıcı yeni kanal açabilir', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const first = await createChannel({ name: 'Ana Kanal', visibility: 'OPEN' })
+    if (!first.ok) throw new Error('beklenmedik hata')
+    const promoted = await addChannelMember({
+      channelId: first.data.id, userId: plain.id, channelRole: 'LEAD',
+    })
+    expect(promoted.ok).toBe(true)
+
+    actorRef.current = { id: plain.id, globalRole: 'MEMBER' }
+    const r = await createChannel({ name: 'İkinci Kanal', visibility: 'OPEN' })
+    expect(r.ok).toBe(true)
+  })
 })
 
 describe('addChannelMember', () => {
@@ -81,6 +96,75 @@ describe('addChannelMember', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
   })
+
+  it('kanal üyesi ama LEAD olmayan biri başkasını ekleyemez', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Dernek', visibility: 'PRIVATE' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+    const addPlain = await addChannelMember({
+      channelId: created.data.id, userId: plain.id, channelRole: 'MEMBER',
+    })
+    if (!addPlain.ok) throw new Error('beklenmedik hata')
+
+    const outsider = await db.user.create({ data: { name: 'Yeni' } })
+    actorRef.current = { id: plain.id, globalRole: 'MEMBER' }
+    const r = await addChannelMember({
+      channelId: created.data.id, userId: outsider.id, channelRole: 'MEMBER',
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
+  })
+
+  it('kanalın son liderini MEMBER\'a düşürmek reddedilir', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Tek Lider', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+
+    const r = await addChannelMember({
+      channelId: created.data.id, userId: admin.id, channelRole: 'MEMBER',
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('CONFLICT')
+  })
+})
+
+describe('removeChannelMember', () => {
+  it('LEAD bir üyeyi kanaldan çıkarabilir', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Etkinlik', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+    const added = await addChannelMember({
+      channelId: created.data.id, userId: plain.id, channelRole: 'MEMBER',
+    })
+    if (!added.ok) throw new Error('beklenmedik hata')
+
+    const r = await removeChannelMember({ channelId: created.data.id, userId: plain.id })
+    expect(r.ok).toBe(true)
+  })
+
+  it('düz üye başka birini kanaldan çıkaramaz', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Etkinlik 2', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+    const other = await db.user.create({ data: { name: 'Diğer' } })
+    await addChannelMember({ channelId: created.data.id, userId: plain.id, channelRole: 'MEMBER' })
+    await addChannelMember({ channelId: created.data.id, userId: other.id, channelRole: 'MEMBER' })
+
+    actorRef.current = { id: plain.id, globalRole: 'MEMBER' }
+    const r = await removeChannelMember({ channelId: created.data.id, userId: other.id })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
+  })
+
+  it('kanalın son liderini çıkarmak reddedilir (admin de dahil)', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Tek Lider 2', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+
+    const r = await removeChannelMember({ channelId: created.data.id, userId: admin.id })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('CONFLICT')
+  })
 })
 
 describe('listVisibleChannels', () => {
@@ -89,9 +173,37 @@ describe('listVisibleChannels', () => {
     await createChannel({ name: 'Herkese Açık', visibility: 'OPEN' })
     await createChannel({ name: 'Gizli', visibility: 'PRIVATE' })
 
-    const forPlain = await listVisibleChannels({
-      id: plain.id, globalRole: 'MEMBER', isActive: true, memberships: [],
-    })
+    actorRef.current = { id: plain.id, globalRole: 'MEMBER' }
+    const forPlain = await listVisibleChannels()
     expect(forPlain.map((c) => c.name)).toEqual(['Herkese Açık'])
+  })
+
+  it('üye olduğu PRIVATE kanalı görür', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Özel Kulüp', visibility: 'PRIVATE' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+    const added = await addChannelMember({
+      channelId: created.data.id, userId: plain.id, channelRole: 'MEMBER',
+    })
+    if (!added.ok) throw new Error('beklenmedik hata')
+
+    actorRef.current = { id: plain.id, globalRole: 'MEMBER' }
+    const forPlain = await listVisibleChannels()
+    expect(forPlain.map((c) => c.name)).toContain('Özel Kulüp')
+  })
+
+  it('admin tüm PRIVATE kanalları görür', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    await createChannel({ name: 'Gizli 2', visibility: 'PRIVATE' })
+    await createChannel({ name: 'Gizli 3', visibility: 'PRIVATE' })
+
+    const forAdmin = await listVisibleChannels()
+    expect(forAdmin.map((c) => c.name)).toEqual(expect.arrayContaining(['Gizli 2', 'Gizli 3']))
+  })
+
+  it('oturum yoksa boş liste döner', async () => {
+    actorRef.current = null
+    const forNobody = await listVisibleChannels()
+    expect(forNobody).toEqual([])
   })
 })

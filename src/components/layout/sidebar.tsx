@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import type { Actor } from '@/lib/auth/policy'
-import { listVisibleChannels } from '@/server/channels'
+import { listVisibleChannels } from '@/server/channels-query'
 
 export async function Sidebar({ actor }: { actor: Actor }) {
-  const channels = await listVisibleChannels(actor)
+  const channels = await listVisibleChannels()
   const mine = new Set(actor.memberships.map((m) => m.channelId))
 
   return (

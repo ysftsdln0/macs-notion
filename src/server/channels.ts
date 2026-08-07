@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { defineAction } from '@/lib/action'
+import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
 import { type Actor, can } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
@@ -17,6 +17,43 @@ async function uniqueSlug(base: string): Promise<string> {
     candidate = `${base}-${suffix}`
   }
   return candidate
+}
+
+// addChannelMember ve removeChannelMember birebir aynı yetki kontrolünü
+// paylaşır: kanalı bul, bulunamazsa NOT_FOUND, bulunursa channel:manageMembers
+// ile karar ver. Tek yerden yönetilir, ikisi de bu fonksiyonu kullanır.
+async function authorizeChannelMembership(
+  { actor, input }: { actor: Actor; input: { channelId: string } },
+) {
+  const channel = await db.channel.findUnique({ where: { id: input.channelId } })
+  if (!channel) return { allowed: false as const, code: 'NOT_FOUND' as const }
+  if (!can(actor, 'channel:manageMembers', {
+    kind: 'channel', id: channel.id,
+    visibility: channel.visibility, archivedAt: channel.archivedAt,
+  })) {
+    return { allowed: false as const }
+  }
+  return { allowed: true as const }
+}
+
+// Bir kanalın son LEAD'i çıkarılamaz ya da MEMBER'a düşürülemez — aksi halde
+// kanal sahipsiz kalır. Admin de bu kuraldan muaf değildir: sorun kimin
+// yaptığı değil, kanalın liderisiz kalmasıdır (bkz. member:deactivate'teki
+// "admin kendini pasife alamaz" kuralıyla aynı gerekçe).
+async function assertNotLastLead(
+  channelId: string,
+  userId: string,
+  nextRole: 'LEAD' | 'MEMBER' | null,
+): Promise<void> {
+  if (nextRole === 'LEAD') return
+  const target = await db.channelMember.findUnique({
+    where: { channelId_userId: { channelId, userId } },
+  })
+  if (!target || target.channelRole !== 'LEAD') return
+  const leadCount = await db.channelMember.count({ where: { channelId, channelRole: 'LEAD' } })
+  if (leadCount <= 1) {
+    throw actionError('CONFLICT', { channelRole: 'Kanalın son liderini çıkaramaz veya düşüremezsin.' })
+  }
 }
 
 export const createChannel = defineAction({
@@ -43,6 +80,7 @@ export const createChannel = defineAction({
       await recordActivity(tx, {
         actorId: actor.id, verb: 'channel.created',
         entityType: 'Channel', entityId: created.id, meta: { name: created.name },
+        channelId: created.id,
       })
       return created
     })
@@ -57,17 +95,9 @@ export const addChannelMember = defineAction({
     channelRole: z.enum(['LEAD', 'MEMBER']).default('MEMBER'),
   }),
   getActor,
-  authorize: async ({ actor, input }) => {
-    const channel = await db.channel.findUnique({ where: { id: input.channelId } })
-    if (!channel) return { allowed: false, code: 'NOT_FOUND' as const }
-    return {
-      allowed: can(actor, 'channel:manageMembers', {
-        kind: 'channel', id: channel.id,
-        visibility: channel.visibility, archivedAt: channel.archivedAt,
-      }),
-    }
-  },
+  authorize: authorizeChannelMembership,
   handler: async ({ actor, input }) => {
+    await assertNotLastLead(input.channelId, input.userId, input.channelRole)
     const member = await db.channelMember.upsert({
       where: { channelId_userId: { channelId: input.channelId, userId: input.userId } },
       create: { channelId: input.channelId, userId: input.userId, channelRole: input.channelRole },
@@ -76,6 +106,7 @@ export const addChannelMember = defineAction({
     await recordActivity(db, {
       actorId: actor.id, verb: 'channel.memberAdded',
       entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
+      channelId: input.channelId,
     })
     return { id: member.id }
   },
@@ -84,37 +115,17 @@ export const addChannelMember = defineAction({
 export const removeChannelMember = defineAction({
   input: z.object({ channelId: z.string().cuid(), userId: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor, input }) => {
-    const channel = await db.channel.findUnique({ where: { id: input.channelId } })
-    if (!channel) return { allowed: false, code: 'NOT_FOUND' as const }
-    return {
-      allowed: can(actor, 'channel:manageMembers', {
-        kind: 'channel', id: channel.id,
-        visibility: channel.visibility, archivedAt: channel.archivedAt,
-      }),
-    }
-  },
+  authorize: authorizeChannelMembership,
   handler: async ({ actor, input }) => {
+    await assertNotLastLead(input.channelId, input.userId, null)
     await db.channelMember.deleteMany({
       where: { channelId: input.channelId, userId: input.userId },
     })
     await recordActivity(db, {
       actorId: actor.id, verb: 'channel.memberRemoved',
       entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
+      channelId: input.channelId,
     })
     return { ok: true as const }
   },
 })
-
-export async function listVisibleChannels(actor: Actor) {
-  const memberChannelIds = actor.memberships.map((m) => m.channelId)
-  return db.channel.findMany({
-    where: {
-      archivedAt: null,
-      ...(actor.globalRole === 'ADMIN'
-        ? {}
-        : { OR: [{ visibility: 'OPEN' }, { id: { in: memberChannelIds } }] }),
-    },
-    orderBy: { name: 'asc' },
-  })
-}
