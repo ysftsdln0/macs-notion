@@ -51,4 +51,37 @@ describe('completeOnboarding', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('UNAUTHENTICATED')
   })
+
+  it('iki kez çağrılırsa tek member.joined kaydı kalır ve onboardedAt değişmez', async () => {
+    const user = await db.user.create({ data: { name: 'Google Adı', email: 'c@x.com' } })
+    actorRef.current = { id: user.id }
+
+    const first = await completeOnboarding({ name: 'Yusuf Efe', title: 'Proje Koordinatörü' })
+    expect(first.ok).toBe(true)
+    const afterFirst = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    const firstOnboardedAt = afterFirst.onboardedAt
+    expect(firstOnboardedAt).not.toBeNull()
+
+    const second = await completeOnboarding({ name: 'Yusuf Efe', title: 'Proje Koordinatörü' })
+    expect(second.ok).toBe(true)
+
+    const activities = await db.activity.findMany({ where: { entityId: user.id, verb: 'member.joined' } })
+    expect(activities).toHaveLength(1)
+
+    const afterSecond = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(afterSecond.onboardedAt?.getTime()).toBe(firstOnboardedAt?.getTime())
+  })
+
+  it('ikinci çağrı ad ve ünvanı yine günceller', async () => {
+    const user = await db.user.create({ data: { name: 'Google Adı', email: 'd@x.com' } })
+    actorRef.current = { id: user.id }
+
+    await completeOnboarding({ name: 'Yusuf Efe', title: 'Proje Koordinatörü' })
+    const r = await completeOnboarding({ name: 'Efe Yusuf', title: 'Başkan' })
+
+    expect(r.ok).toBe(true)
+    const updated = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(updated.name).toBe('Efe Yusuf')
+    expect(updated.title).toBe('Başkan')
+  })
 })
