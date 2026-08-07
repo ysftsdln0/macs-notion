@@ -31,7 +31,7 @@ Bu bölüm her task'ın gereksinimlerine örtük olarak dahildir.
 
 ```
 compose.yml                     prod: caddy + web + collab + db
-compose.dev.yml                 dev: db + web (hot reload)
+compose.dev.yml                 dev: yalnızca db (web host'ta `pnpm dev` ile)
 Caddyfile                       reverse proxy + otomatik HTTPS
 Dockerfile                      web imajı (multi-stage, standalone output)
 .env.example                    tüm env değişkenleri, gerçek sır yok
@@ -361,6 +361,15 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm prisma generate && pnpm build
 
+# Migration hedefi: prisma CLI'ın çalışması için tam node_modules gerekir.
+# Ayrı imaj olarak build edilip push edilir, deploy'da bir kez çalışıp çıkar.
+FROM base AS migrate
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY prisma ./prisma
+COPY package.json ./
+CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
+
 FROM base AS run
 ENV NODE_ENV=production
 COPY --from=build /app/.next/standalone ./
@@ -369,8 +378,12 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 3000
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node server.js"]
+CMD ["node", "server.js"]
 ```
+
+`docker build --target run -t macs-web .` ve `docker build --target migrate -t macs-migrate .` iki ayrı imaj üretir. Task 14'teki deploy workflow ikisini de push eder.
+
+> **Migration burada çalışmaz.** `prisma` CLI ayrı bir devDependency paketidir; Next'in standalone tracing'i onu imaja taşımaz, çünkü uygulama kodu import etmez. `node_modules/.bin/prisma`'yı CMD'ye koymak container'ı açılmaz hale getirir. Migration'ı Task 14'teki kısa ömürlü `migrate` servisi çalıştırır.
 
 `next.config.ts` içine `output: 'standalone'` eklenir.
 
@@ -3044,6 +3057,18 @@ services:
       - caddy_config:/config
     depends_on: [web]
 
+  # Kısa ömürlü migration job'ı. Şemayı uygular ve çıkar; web ona bağlıdır.
+  # Migration'ın web container'ının CMD'sinde olmamasının iki sebebi:
+  # (1) prisma CLI ayrı bir devDependency paketidir, standalone imajda yoktur;
+  # (2) web birden fazla replikaya çıktığında eşzamanlı migrate yarışı olur.
+  migrate:
+    image: ghcr.io/${GH_OWNER}/macs-migrate:${IMAGE_TAG:-latest}
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://macs:${POSTGRES_PASSWORD}@db:5432/macs
+    depends_on:
+      db: { condition: service_healthy }
+
   web:
     image: ghcr.io/${GH_OWNER}/macs-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -3056,6 +3081,7 @@ services:
       AUTH_TRUST_HOST: 'true'
     depends_on:
       db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
 
   db:
     image: postgres:16
@@ -3136,10 +3162,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - name: web imajı
+        uses: docker/build-push-action@v6
         with:
           push: true
+          target: run
           tags: ghcr.io/${{ github.repository_owner }}/macs-web:${{ github.sha }},ghcr.io/${{ github.repository_owner }}/macs-web:latest
+      - name: migrate imajı
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          target: migrate
+          tags: ghcr.io/${{ github.repository_owner }}/macs-migrate:${{ github.sha }},ghcr.io/${{ github.repository_owner }}/macs-migrate:latest
       - name: VPS'te güncelle
         uses: appleboy/ssh-action@v1
         with:
@@ -3148,7 +3182,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/macs
-            IMAGE_TAG=${{ github.sha }} docker compose pull web
+            IMAGE_TAG=${{ github.sha }} docker compose pull web migrate
             IMAGE_TAG=${{ github.sha }} docker compose up -d
             docker image prune -f
 ```
