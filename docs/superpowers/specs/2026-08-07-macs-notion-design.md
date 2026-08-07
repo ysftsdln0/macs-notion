@@ -42,7 +42,7 @@ Generic motor v3'te gelir (bkz. Bölüm 10). v1'in veri deseni bunu engellemeyec
 Tek Next.js uygulaması + yanında Yjs collab sunucusu. VPS üzerinde Docker Compose, önünde Caddy (otomatik HTTPS).
 
 ```
-[Caddy :443]  ──/──────────►  [Next.js 15  :3000]  ──►  [Postgres 16]
+[Caddy :443]  ──/──────────►  [Next.js 16  :3000]  ──►  [Postgres 16]
               └─/collab/*──►  [Hocuspocus  :1234]  ──►  ┘  (Yjs doc state)
                                                         [uploads volume]
 ```
@@ -53,7 +53,7 @@ Dört container: `caddy`, `web`, `collab`, `db`. Geliştirme ortamı da aynı Co
 
 | Katman | Seçim | Gerekçe |
 |---|---|---|
-| Framework | Next.js 15 (App Router), TypeScript strict | Server Component ile veri çekme, tek repo |
+| Framework | Next.js 16 (App Router), TypeScript strict | Server Component ile veri çekme, tek repo |
 | UI | Tailwind CSS + shadcn/ui | Notion hissi için tam kontrol, responsive |
 | Veritabanı | Postgres 16 + Prisma | Self-host, migration disiplini, tip güvenliği |
 | Kimlik | Auth.js v5 + Google provider, DB session | Şifre yok, davet linki rol atar |

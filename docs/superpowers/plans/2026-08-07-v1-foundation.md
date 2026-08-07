@@ -4,9 +4,9 @@
 
 **Goal:** Kulüp üyesinin davet linkiyle Google üzerinden giriş yapıp profilini kurabildiği, kanalları görebildiği ve yönetebildiği, tüm yetki kurallarının test edilmiş tek bir noktadan işlediği, container'larda çalışan ve sunucuya deploy edilebilen bir temel uygulama.
 
-**Architecture:** Tek Next.js 15 App Router uygulaması, Postgres 16 ile Prisma üzerinden konuşur. Kimlik Auth.js v5 + Google provider, oturum veritabanında. Tüm yetkilendirme `src/lib/auth/policy.ts` içindeki saf `can()` fonksiyonunda toplanır ve her server action veriye dokunmadan önce onu çağırır. Docker Compose ile dört container (`caddy`, `web`, `collab`, `db`) — bu planda `collab` henüz devrede değildir, Plan 2'de gelir.
+**Architecture:** Tek Next.js 16 App Router uygulaması, Postgres 16 ile Prisma üzerinden konuşur. Kimlik Auth.js v5 + Google provider, oturum veritabanında. Tüm yetkilendirme `src/lib/auth/policy.ts` içindeki saf `can()` fonksiyonunda toplanır ve her server action veriye dokunmadan önce onu çağırır. Docker Compose ile dört container (`caddy`, `web`, `collab`, `db`) — bu planda `collab` henüz devrede değildir, Plan 2'de gelir.
 
-**Tech Stack:** Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS, shadcn/ui, Prisma 6 + Postgres 16, Auth.js v5 (next-auth@5), Zod, Vitest, Playwright, Docker Compose, Caddy, GitHub Actions + GHCR.
+**Tech Stack:** Next.js 16 (App Router), React 19, TypeScript strict, Tailwind CSS, shadcn/ui, Prisma 6 + Postgres 16, Auth.js v5 (next-auth@5), Zod, Vitest, Playwright, Docker Compose, Caddy, GitHub Actions + GHCR.
 
 ## Global Constraints
 
