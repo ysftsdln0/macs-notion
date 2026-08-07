@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { hashInviteToken } from '@/lib/auth/invite-token'
 import { signIn } from '@/lib/auth/config'
 import { getActor } from '@/lib/auth/session'
-import { consumeInvite } from '@/server/invites'
+import { consumeInvite } from '@/server/invite-service'
 import { INVITE_COOKIE, INVITE_COOKIE_MAX_AGE } from '@/lib/auth/invite-cookie'
 import { Button } from '@/components/ui/button'
 
@@ -24,12 +24,18 @@ export default async function InvitePage({
 
   const invalid = !invite || invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()
   if (invalid) {
+    // `hata=1`, onaylı kullanım denemesi (aşağıdaki imzalı kullanıcı formu)
+    // başarısız olup buraya geri yönlendirdiğinde düşer — davet bu ana kadar
+    // zaten geçersiz hale gelmiştir (başka biri kapmıştır), o yüzden bu mesaj
+    // bu dal içinde gösterilir; ayrı bir dal hiç render edilmez.
     return (
       <main className="flex min-h-dvh items-center justify-center p-6">
         <div className="max-w-sm space-y-2 text-center">
           <h1 className="text-xl font-semibold">Davet geçersiz</h1>
           <p className="text-sm text-muted-foreground">
-            Bu davet kullanılmış, iptal edilmiş veya süresi dolmuş. Kulüp yönetiminden yeni bir link iste.
+            {failed
+              ? 'Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.'
+              : 'Bu davet kullanılmış, iptal edilmiş veya süresi dolmuş. Kulüp yönetiminden yeni bir link iste.'}
           </p>
         </div>
       </main>
@@ -62,11 +68,6 @@ export default async function InvitePage({
           >
             <Button type="submit" className="w-full">Daveti kabul et</Button>
           </form>
-          {failed && (
-            <p className="text-sm text-destructive">
-              Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.
-            </p>
-          )}
         </div>
       </main>
     )
@@ -96,6 +97,9 @@ export default async function InvitePage({
         >
           <Button type="submit" className="w-full">Google ile devam et</Button>
         </form>
+        <p className="text-xs text-muted-foreground">
+          Zaten bir MACS hesabın varsa önce giriş yap, sonra bu bağlantıyı tekrar aç.
+        </p>
       </div>
     </main>
   )

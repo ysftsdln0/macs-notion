@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { hashInviteToken } from '@/lib/auth/invite-token'
 import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
-import { applyInvite, claimInvite } from '@/server/invites'
+import { applyInvite, claimInvite } from '@/server/invite-service'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
@@ -57,6 +57,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * `signIn` daveti sahiplendi ama kullanıcı henüz yoktu. Satır oluşunca
      * rol ve kanal üyeliği burada bağlanır. Sahiplenme başarısız olsaydı
      * bu noktaya hiç gelinmezdi.
+     *
+     * `applyInvite` burada BİLEREK try/catch içinde: Auth.js akışı
+     * `createUser` → bu event → `linkAccount` → `createSession` şeklinde
+     * ilerler ve hiçbiri korumalı değildir. Hata burada yutulmazsa kullanıcı
+     * satırı hesabı bağlanmadan kalır; bir sonraki girişte Auth.js
+     * `AccountNotLinked` fırlatır ve hesap kalıcı olarak kilitlenir — davet
+     * zaten yanmış, kimse yeniden denemez. Rol/kanal ataması yapılmamış ama
+     * giriş yapabilen bir kullanıcı adminin düzeltebileceği bir durumdur;
+     * bağlanamayan bir hesap değildir.
      */
     async createUser({ user }) {
       if (!user.id) return
@@ -67,7 +76,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         where: { tokenHash: hashInviteToken(token) },
       })
       if (!invite || invite.usedByUserId) return
-      await applyInvite(invite.id, user.id)
+      try {
+        await applyInvite(invite.id, user.id)
+      } catch (error) {
+        console.error('[auth] davet uygulanamadı', { inviteId: invite.id, userId: user.id }, error)
+      }
     },
   },
 })

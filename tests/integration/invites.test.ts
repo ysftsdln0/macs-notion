@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
-import { applyInvite, claimInvite, consumeInvite } from '@/server/invites'
+import { applyInvite, claimInvite, consumeInvite } from '@/server/invite-service'
 import { createInviteToken } from '@/lib/auth/invite-token'
 
 let adminId: string
@@ -133,6 +133,26 @@ describe('consumeInvite', () => {
 
     const usedInvites = await db.invite.findMany({ where: { usedByUserId: user.id } })
     expect(usedInvites).toHaveLength(2)
+  })
+
+  it('sahiplenme başarısız olunca applyInvite hiç çalışmaz: ikinci kullanıcı üyelik veya rol kazanmaz', async () => {
+    const { token } = await seedInvite({ globalRole: 'ADMIN' })
+    const first = await db.user.create({ data: { name: 'K', email: 'k@x.com' } })
+    const second = await db.user.create({ data: { name: 'L', email: 'l@x.com' } })
+
+    const firstResult = await consumeInvite(token, first.id)
+    const secondResult = await consumeInvite(token, second.id)
+
+    expect(firstResult.ok).toBe(true)
+    expect(secondResult.ok).toBe(false)
+    if (!secondResult.ok) expect(secondResult.error.code).toBe('CONFLICT')
+
+    const secondMembership = await db.channelMember.findUnique({
+      where: { channelId_userId: { channelId, userId: second.id } },
+    })
+    expect(secondMembership).toBeNull()
+    const secondUser = await db.user.findUniqueOrThrow({ where: { id: second.id } })
+    expect(secondUser.globalRole).toBe('MEMBER')
   })
 })
 
