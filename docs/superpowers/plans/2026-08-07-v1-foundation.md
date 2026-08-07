@@ -16,7 +16,7 @@ Bu bölüm her task'ın gereksinimlerine örtük olarak dahildir.
 - **Yetki kontrolü veriye dokunmadan önce yapılır.** Her server action ve route handler ilk iş `can()` çağırır. Arayüzde buton gizlemek güvenlik sınırı değildir.
 - **Server action dönüş tipi her zaman `Result<T>`** — `{ ok: true, data: T } | { ok: false, error: AppError }`. Exception fırlatıp UI'da yakalama deseni kullanılmaz.
 - **Girdi doğrulama Zod ile**, hata mesajları alan bazında döner.
-- **Soft delete** — silme işlemleri `archivedAt` set eder, satır silinmez.
+- **Soft delete — içerik varlıklarında.** `Document`, `Task`, `Event`, `Sponsor`, `BudgetEntry`, `Channel` gibi içerik varlıklarında silme `archivedAt` set eder, satır silinmez. **Join tabloları muaftır** (`ChannelMember`, `Assignee`, `DocumentShare`): bunlar gerçekten silinir. Sebebi teknik: `@@unique([channelId, userId])` gibi kısıtlar arşivlenmiş satır yüzünden aynı kişinin yeniden eklenmesini bloklar. Kayıt zaten `Activity` tablosuna düşer, geri alma tek işlemdir.
 - **Para alanları `@db.Decimal(12, 2)`**, float kullanılmaz. (Bu planda para alanı yok; kural sonraki planlar için geçerlidir.)
 - **Davet token'ı veritabanında SHA-256 hash olarak saklanır**, ham token yalnızca linkte bulunur.
 - **Her ekranda dört durum:** yükleniyor (skeleton) / hata (+tekrar dene) / boş (+eylem) / dolu.
