@@ -919,7 +919,14 @@ export type Action =
 export type Resource =
   | { kind: 'channel:new' }
   | { kind: 'channel'; id: string; visibility: Visibility; archivedAt: Date | null }
-  | { kind: 'content'; channelId: string; channelVisibility: Visibility; ownerId?: string | null; assigneeIds?: string[] }
+  | {
+      kind: 'content'
+      channelId: string
+      channelVisibility: Visibility
+      channelArchivedAt: Date | null
+      ownerId?: string | null
+      assigneeIds?: string[]
+    }
   | { kind: 'invite' }
   | { kind: 'member'; id: string }
 
@@ -962,13 +969,20 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
 
     case 'content:write': {
       if (resource.kind !== 'content') return false
+      // Arşivlenmiş kanal salt-okunur: içeriği de kapsar.
+      if (resource.channelArchivedAt) return false
       if (isAdmin(actor)) return true
       if (membership(actor, resource.channelId)) return true
+      // Atama, PRIVATE kanalda üyeliğin yerine geçmez. Geçseydi kişi
+      // yazabildiği içeriği okuyamazdı; o asimetri sayfa kodunda
+      // "okuma kontrolünü atla" refleksi doğurur.
+      if (resource.channelVisibility !== 'OPEN') return false
       return resource.assigneeIds?.includes(actor.id) ?? false
     }
 
     case 'content:delete': {
       if (resource.kind !== 'content') return false
+      if (resource.channelArchivedAt) return false
       if (isAdmin(actor)) return true
       if (resource.ownerId === actor.id) return true
       return membership(actor, resource.channelId)?.channelRole === 'LEAD'
@@ -990,8 +1004,12 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
       return resource.kind === 'member' && isAdmin(actor) && resource.id !== actor.id
 
     default: {
+      // Derleme zamanı ağı: yeni bir Action kuralsız eklenirse burası hata verir.
       const exhaustive: never = action
-      return exhaustive
+      void exhaustive
+      // Çalışma zamanı ağı: tipsiz sınırdan (form verisi, JSON gövdesi) gelen
+      // bilinmeyen bir action `undefined` değil `false` döner.
+      return false
     }
   }
 }
