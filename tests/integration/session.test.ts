@@ -1,11 +1,21 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import type { Session } from 'next-auth'
 import { db } from '@/lib/db'
-import { toActor } from '@/lib/auth/session'
+
+vi.mock('@/lib/auth/config', () => ({ auth: vi.fn() }))
+
+import { auth } from '@/lib/auth/config'
+import { getActor, toActor } from '@/lib/auth/session'
+
+// `auth`'un gerçek tipi Next.js middleware imzalarıyla aşırı yüklenmiş
+// (overloaded); test amaçlı sahtesi tek imzalı basit bir fonksiyondur.
+const mockedAuth = auth as unknown as Mock<() => Promise<Session | null>>
 
 beforeEach(async () => {
   await db.channelMember.deleteMany()
   await db.channel.deleteMany()
   await db.user.deleteMany()
+  mockedAuth.mockReset()
 })
 
 describe('toActor', () => {
@@ -31,5 +41,20 @@ describe('toActor', () => {
       isActive: true,
       memberships: [{ channelId: channel.id, channelRole: 'LEAD' }],
     })
+  })
+})
+
+describe('getActor', () => {
+  it('pasif kullanıcı için null döner', async () => {
+    const user = await db.user.create({
+      data: { name: 'Pasif Kullanıcı', isActive: false },
+    })
+    const session: Session = {
+      user: { id: user.id, name: user.name, email: user.email, image: user.avatarUrl },
+      expires: new Date(Date.now() + 86_400_000).toISOString(),
+    }
+    mockedAuth.mockResolvedValue(session)
+
+    await expect(getActor()).resolves.toBeNull()
   })
 })

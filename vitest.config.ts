@@ -6,6 +6,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    // Integration tests share one Postgres instance and reset tables via
+    // deleteMany() in beforeEach. Running test files in parallel workers
+    // races those resets against each other (observed: a FK violation when
+    // one file's user.deleteMany() overlapped another file's channel
+    // create). Serializing files keeps each file's reset+assert atomic.
+    fileParallelism: false,
     server: {
       deps: {
         // next-auth (Auth.js) imports subpaths like "next/server" without an
