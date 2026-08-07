@@ -468,9 +468,20 @@ Expected: FAIL — `db.channel` tanımlı değil
 - [ ] **Step 3: Şemayı yaz**
 
 ```prisma
-enum GlobalRole { ADMIN MEMBER }
-enum ChannelRole { LEAD MEMBER }
-enum ChannelVisibility { OPEN PRIVATE }
+enum GlobalRole {
+  ADMIN
+  MEMBER
+}
+
+enum ChannelRole {
+  LEAD
+  MEMBER
+}
+
+enum ChannelVisibility {
+  OPEN
+  PRIVATE
+}
 
 model User {
   id          String   @id @default(cuid())
