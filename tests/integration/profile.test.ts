@@ -84,4 +84,23 @@ describe('completeOnboarding', () => {
     expect(updated.name).toBe('Efe Yusuf')
     expect(updated.title).toBe('Başkan')
   })
+
+  it('eşzamanlı iki çağrıdan yalnızca biri member.joined kaydı bırakır', async () => {
+    const user = await db.user.create({ data: { name: 'Google Adı', email: 'e@x.com' } })
+    actorRef.current = { id: user.id }
+
+    const [first, second] = await Promise.all([
+      completeOnboarding({ name: 'Yusuf Efe', title: 'Proje Koordinatörü' }),
+      completeOnboarding({ name: 'Efe Yusuf', title: 'Başkan' }),
+    ])
+
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(true)
+
+    const activities = await db.activity.findMany({ where: { entityId: user.id, verb: 'member.joined' } })
+    expect(activities).toHaveLength(1)
+
+    const updated = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(updated.onboardedAt).not.toBeNull()
+  })
 })
