@@ -23,6 +23,7 @@ Bu bölüm her task'ın gereksinimlerine örtük olarak dahildir.
 - **Arayüzde "Private" kelimesi kullanılmaz.** Doküman görünürlüğü etiketi "Sadece ben", alt not "Yöneticiler erişebilir". Kod içindeki enum `PRIVATE` olarak kalır.
 - **Paket yöneticisi pnpm**, Node 22.
 - **Commit mesajları Conventional Commits.**
+- **`'use server'` modülünde yalnızca gerçek action bulunur.** Böyle bir dosyanın *her* export'u ağdan çağrılabilir bir uç noktadır — sorgu yardımcıları, saf fonksiyonlar ve `Actor` gibi bir parametreyi çağırandan alan hiçbir şey oraya konmaz. Çağırandan gelen `Actor` sahte olabilir; kimlik her zaman sunucuda `getActor()` ile çözülür.
 - **Yerel port haritası:** geliştirme makinesinde 5432 ve 3000 başka bir proje tarafından tutuluyor. Bu yüzden **Postgres host portu 5433**, **web dev/start portu 3100**. Container içi portlar (5432, 3000) ve CI/production portları değişmez — yalnızca host tarafındaki eşleme kayar. Buna bağlı olarak yerel `DATABASE_URL` 5433'e, `AUTH_URL` `http://localhost:3100`'e işaret eder.
 
 ---
@@ -54,7 +55,8 @@ src/lib/auth/invite-cookie.ts   davet çerezi sabitleri (döngüsel import'u ön
 src/lib/activity.ts             recordActivity()
 src/types/next-auth.d.ts        Session.user.id tip genişletmesi
 
-src/server/channels.ts          kanal server action'ları
+src/server/channels.ts          kanal server action'ları ('use server')
+src/server/channels-query.ts    listVisibleChannels — DÜZ modül, action DEĞİL
 src/server/invites.ts           davet server action'ları ('use server')
 src/server/invite-service.ts    claim/apply/consume — DÜZ modül, action DEĞİL
 src/server/members.ts           üye server action'ları
@@ -603,6 +605,10 @@ model Activity {
   verb       String
   entityType String
   entityId   String
+  // Akışın kapsamlanabilmesi için: kaydın ait olduğu kanal. Null ise
+  // kulüp geneli (üye katıldı, rol değişti). Bu alan olmadan ana sayfadaki
+  // akış PRIVATE kanal hareketlerini herkese gösterir.
+  channelId  String?
   meta       Json?
   createdAt  DateTime @default(now())
 
@@ -2537,7 +2543,12 @@ export const removeChannelMember = defineAction({
   },
 })
 
-export async function listVisibleChannels(actor: Actor) {
+// src/server/channels-query.ts — 'use server' YOK. Kimliği çağırandan değil,
+// oturumdan alır: parametre olarak Actor kabul eden bir export, action
+// modülünde yayınlanırsa sahte Actor ile çağrılabilir.
+export async function listVisibleChannels() {
+  const actor = await getActor()
+  if (!actor) return []
   const memberChannelIds = actor.memberships.map((m) => m.channelId)
   return db.channel.findMany({
     where: {
