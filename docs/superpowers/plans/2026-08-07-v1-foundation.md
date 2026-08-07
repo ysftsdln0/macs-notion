@@ -1866,8 +1866,7 @@ export default async function InvitePage({
 `src/lib/auth/config.ts` içindeki `signIn` callback'ini şununla değiştir:
 
 ```ts
-    async signIn({ user, account }) {
-      if (account?.provider === 'e2e') return true
+    async signIn({ user }) {
       if (!user.email) return false
 
       const existing = await db.user.findUnique({ where: { email: user.email } })
