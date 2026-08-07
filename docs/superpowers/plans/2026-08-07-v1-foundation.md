@@ -499,7 +499,7 @@ model User {
   memberships    ChannelMember[]
   createdChannels Channel[]      @relation("ChannelCreatedBy")
   createdInvites Invite[]        @relation("InviteCreatedBy")
-  usedInvite     Invite?         @relation("InviteUsedBy")
+  usedInvites    Invite[]        @relation("InviteUsedBy")
   activities     Activity[]
 
   @@index([isActive])
@@ -585,7 +585,7 @@ model Invite {
   expiresAt   DateTime
   createdById String
   createdAt   DateTime    @default(now())
-  usedByUserId String?    @unique
+  usedByUserId String?
   usedAt      DateTime?
   revokedAt   DateTime?
 
@@ -1736,22 +1736,34 @@ export const revokeInvite = defineAction({
 })
 
 /**
- * Davet kullanımı. Action değildir: kullanıcı bu noktada yeni oturum açmıştır,
- * yetki kontrolü token'ın kendisidir.
+ * Daveti ATOMİK olarak sahiplenir. Tek `updateMany`, tüm geçerlilik koşulları
+ * `where` içinde: iki eşzamanlı istekten yalnızca biri `count === 1` alır.
+ * Ayrı bir "önce oku, sonra yaz" adımı bırakılmaz — aradaki boşluk bir daveti
+ * birden çok hesaba açar.
  */
-export async function consumeInvite(
-  token: string,
-  userId: string,
-): Promise<Result<{ channelId: string | null }>> {
-  const invite = await db.invite.findUnique({ where: { tokenHash: hashInviteToken(token) } })
+export async function claimInvite(tokenHash: string): Promise<boolean> {
+  const claimed = await db.invite.updateMany({
+    where: {
+      tokenHash,
+      usedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { usedAt: new Date() },
+  })
+  return claimed.count === 1
+}
+
+/**
+ * Sahiplenilmiş davetin etkilerini uygular. Sahiplenme ile ayrı tutulur:
+ * kullanıcı satırı ancak kabul kararından SONRA var olur.
+ */
+export async function applyInvite(inviteId: string, userId: string): Promise<Result<{ channelId: string | null }>> {
+  const invite = await db.invite.findUnique({ where: { id: inviteId } })
   if (!invite) return fail('NOT_FOUND')
-  if (invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()) return fail('CONFLICT')
 
   await db.$transaction(async (tx) => {
-    await tx.invite.update({
-      where: { id: invite.id, usedAt: null },
-      data: { usedAt: new Date(), usedByUserId: userId },
-    })
+    await tx.invite.update({ where: { id: invite.id }, data: { usedByUserId: userId } })
     if (invite.globalRole === 'ADMIN') {
       await tx.user.update({ where: { id: userId }, data: { globalRole: 'ADMIN' } })
     }
@@ -1769,6 +1781,22 @@ export async function consumeInvite(
   })
 
   return ok({ channelId: invite.channelId })
+}
+
+/**
+ * Zaten giriş yapmış kullanıcı için davet kullanımı (ikinci bir kanala davet).
+ * Action değildir: yetki kontrolü token'ın kendisidir. Önce sahiplenir,
+ * sonra uygular.
+ */
+export async function consumeInvite(
+  token: string,
+  userId: string,
+): Promise<Result<{ channelId: string | null }>> {
+  const tokenHash = hashInviteToken(token)
+  const invite = await db.invite.findUnique({ where: { tokenHash } })
+  if (!invite) return fail('NOT_FOUND')
+  if (!(await claimInvite(tokenHash))) return fail('CONFLICT')
+  return applyInvite(invite.id, userId)
 }
 ```
 
@@ -1803,8 +1831,13 @@ import { Button } from '@/components/ui/button'
 
 export default async function InvitePage({
   params,
-}: { params: Promise<{ token: string }> }) {
+  searchParams,
+}: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ hata?: string }>
+}) {
   const { token } = await params
+  const failed = (await searchParams).hata === '1'
   const invite = await db.invite.findUnique({
     where: { tokenHash: hashInviteToken(token) },
     include: { channel: true },
@@ -1824,11 +1857,40 @@ export default async function InvitePage({
     )
   }
 
-  // Zaten giriş yapmışsa daveti hemen kullan.
+  // Zaten giriş yapmışsa: onay iste. Render sırasında tüketmek yanlış olur —
+  // tarayıcı ön yüklemesi (prefetch) daveti tıklamadan yakabilir ve üçüncü
+  // bir taraf, oturumu açık kurbanı istemediği bir daveti kullanmaya
+  // zorlayabilir (oturum çerezi sameSite=lax olduğu için üst düzey
+  // gezinmede gönderilir).
   const actor = await getActor()
   if (actor) {
-    await consumeInvite(token, actor.id)
-    redirect('/')
+    return (
+      <main className="flex min-h-dvh items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6 text-center">
+          <h1 className="text-2xl font-semibold">Davetiye</h1>
+          {invite.channel && (
+            <p className="text-sm text-muted-foreground">
+              <strong>{invite.channel.name}</strong> kanalına ekleneceksin.
+            </p>
+          )}
+          <form
+            action={async () => {
+              'use server'
+              const result = await consumeInvite(token, actor.id)
+              if (!result.ok) redirect(`/invite/${token}?hata=1`)
+              redirect('/')
+            }}
+          >
+            <Button type="submit" className="w-full">Daveti kabul et</Button>
+          </form>
+          {failed && (
+            <p className="text-sm text-destructive">
+              Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.
+            </p>
+          )}
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -1872,24 +1934,50 @@ export default async function InvitePage({
       const existing = await db.user.findUnique({ where: { email: user.email } })
       if (existing) return existing.isActive
 
-      // Yeni kullanıcı: yalnızca geçerli bir davet çerezi varsa hesap açılır.
-      // Bu kontrol olmadan Google hesabı olan herkes içeri girer.
+      // Yeni kullanıcı: davet BURADA sahiplenilir, sonraki isteğe bırakılmaz.
+      // Sadece doğrulayıp geçmek, aynı linkin sınırsız hesap açmasına yol
+      // açar: kullanıcı satırı bu callback true dönünce oluşur ve bir daha
+      // hiç davet kontrolünden geçmez.
       const store = await cookies()
       const token = store.get(INVITE_COOKIE)?.value
       if (!token) return false
-      const invite = await db.invite.findUnique({ where: { tokenHash: hashInviteToken(token) } })
-      if (!invite || invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()) return false
-      return true
+      return claimInvite(hashInviteToken(token))
     },
 ```
 
-Dosyanın başına şu üç import eklenir:
+Dosyanın başına şu import'lar eklenir:
 
 ```ts
 import { cookies } from 'next/headers'
 import { hashInviteToken } from '@/lib/auth/invite-token'
 import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
+import { applyInvite, claimInvite } from '@/server/invites'
 ```
+
+Ve `callbacks`'in yanına `events` eklenir — davetin etkileri kullanıcı satırı oluştuktan sonra uygulanır:
+
+```ts
+  events: {
+    /**
+     * `signIn` daveti sahiplendi ama kullanıcı henüz yoktu. Satır oluşunca
+     * rol ve kanal üyeliği burada bağlanır. Sahiplenme başarısız olsaydı
+     * bu noktaya hiç gelinmezdi.
+     */
+    async createUser({ user }) {
+      if (!user.id) return
+      const store = await cookies()
+      const token = store.get(INVITE_COOKIE)?.value
+      if (!token) return
+      const invite = await db.invite.findUnique({
+        where: { tokenHash: hashInviteToken(token) },
+      })
+      if (!invite || invite.usedByUserId) return
+      await applyInvite(invite.id, user.id)
+    },
+  },
+```
+
+> **Takas, bilinçli:** davet sahiplenildikten sonra kullanıcı oluşturma başarısız olursa link yanmış olur ve admin yenisini üretir. Ters yön — önce kullanıcı, sonra sahiplenme — davetsiz hesap bırakır. Güvenli taraf budur.
 
 - [ ] **Step 9: Doğrula ve commit**
 
@@ -2034,13 +2122,10 @@ import { ProfileForm } from './profile-form'
 export default async function OnboardingPage() {
   const actor = await requireActor()
 
-  // Google dönüşünde bekleyen davet varsa burada kullanılır.
+  // Davet, giriş anında Auth.js tarafında sahiplenilip uygulandı (Task 9).
+  // Burada yalnızca çerez temizlenir.
   const store = await cookies()
-  const token = store.get(INVITE_COOKIE)?.value
-  if (token) {
-    await consumeInvite(token, actor.id)
-    store.delete(INVITE_COOKIE)
-  }
+  store.delete(INVITE_COOKIE)
 
   const user = await db.user.findUniqueOrThrow({ where: { id: actor.id } })
   if (user.onboardedAt) redirect('/')
