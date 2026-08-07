@@ -26,11 +26,11 @@ const privateChannel: Resource = {
   kind: 'channel', id: 'c1', visibility: 'PRIVATE', archivedAt: null,
 }
 const openContent: Resource = {
-  kind: 'content', channelId: 'c1', channelVisibility: 'OPEN',
+  kind: 'content', channelId: 'c1', channelVisibility: 'OPEN', channelArchivedAt: null,
   ownerId: 'member', assigneeIds: [],
 }
 const privateContent: Resource = {
-  kind: 'content', channelId: 'c1', channelVisibility: 'PRIVATE',
+  kind: 'content', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
   ownerId: 'member', assigneeIds: [],
 }
 
@@ -68,6 +68,11 @@ describe('can() — kanal', () => {
     expect(can(admin, 'channel:archive', openChannel)).toBe(true)
   })
 
+  it('düz üye kanal ayarlarını güncelleyemez ve arşivleyemez', () => {
+    expect(can(member, 'channel:update', openChannel)).toBe(false)
+    expect(can(member, 'channel:archive', openChannel)).toBe(false)
+  })
+
   it('arşivlenmiş kanalda yazma işlemi yapılamaz', () => {
     const archived: Resource = { ...openChannel, archivedAt: new Date() }
     expect(can(lead, 'channel:update', archived)).toBe(false)
@@ -94,7 +99,7 @@ describe('can() — kanal içeriği', () => {
 
   it('atanan kişi üye olmasa da yazabilir', () => {
     const assigned: Resource = {
-      kind: 'content', channelId: 'c1', channelVisibility: 'OPEN',
+      kind: 'content', channelId: 'c1', channelVisibility: 'OPEN', channelArchivedAt: null,
       ownerId: 'member', assigneeIds: ['outsider'],
     }
     expect(can(outsider, 'content:write', assigned)).toBe(true)
@@ -106,6 +111,28 @@ describe('can() — kanal içeriği', () => {
     expect(can(admin, 'content:delete', openContent)).toBe(true)
     expect(can(outsider, 'content:delete', openContent)).toBe(false)
   })
+
+  it('admin, kanala üye olmasa da içerik yazabilir', () => {
+    expect(can(admin, 'content:write', openContent)).toBe(true)
+  })
+
+  it('PRIVATE kanalda üye olmayan atanan kişi yazamaz ve okuyamaz', () => {
+    const assignedPrivate: Resource = {
+      kind: 'content', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
+      ownerId: 'member', assigneeIds: ['outsider'],
+    }
+    expect(can(outsider, 'content:write', assignedPrivate)).toBe(false)
+    expect(can(outsider, 'content:read', assignedPrivate)).toBe(false)
+  })
+
+  it('arşivlenmiş kanalın içeriği okunur ama yazılamaz ve silinemez', () => {
+    const archivedContent: Resource = {
+      ...openContent, channelArchivedAt: new Date(),
+    }
+    expect(can(member, 'content:write', archivedContent)).toBe(false)
+    expect(can(member, 'content:delete', archivedContent)).toBe(false)
+    expect(can(member, 'content:read', archivedContent)).toBe(true)
+  })
 })
 
 describe('can() — davet ve üye yönetimi', () => {
@@ -114,6 +141,11 @@ describe('can() — davet ve üye yönetimi', () => {
     expect(can(lead, 'invite:create', { kind: 'invite' })).toBe(false)
     expect(can(admin, 'invite:revoke', { kind: 'invite' })).toBe(true)
     expect(can(lead, 'invite:revoke', { kind: 'invite' })).toBe(false)
+  })
+
+  it('bekleyen davet kodlarını yalnızca admin listeler', () => {
+    expect(can(admin, 'invite:list', { kind: 'invite' })).toBe(true)
+    expect(can(lead, 'invite:list', { kind: 'invite' })).toBe(false)
   })
 
   it('üye listesini herkes görür, rol değiştirmeyi yalnızca admin yapar', () => {
@@ -125,5 +157,17 @@ describe('can() — davet ve üye yönetimi', () => {
   it('admin kendini pasife alamaz', () => {
     expect(can(admin, 'member:deactivate', { kind: 'member', id: 'other' })).toBe(true)
     expect(can(admin, 'member:deactivate', { kind: 'member', id: 'admin' })).toBe(false)
+  })
+
+  it('admin olmayan kimseyi pasife alamaz', () => {
+    expect(can(member, 'member:deactivate', { kind: 'member', id: 'other' })).toBe(false)
+    expect(can(lead, 'member:deactivate', { kind: 'member', id: 'other' })).toBe(false)
+  })
+})
+
+describe('can() — kaynak türü uyuşmazlığı kapalı hata verir', () => {
+  it('yanlış kaynak türü daima false döner', () => {
+    expect(can(admin, 'channel:archive', { kind: 'invite' })).toBe(false)
+    expect(can(admin, 'content:delete', { kind: 'member', id: 'x' })).toBe(false)
   })
 })
