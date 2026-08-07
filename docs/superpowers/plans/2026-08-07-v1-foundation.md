@@ -55,7 +55,8 @@ src/lib/activity.ts             recordActivity()
 src/types/next-auth.d.ts        Session.user.id tip genişletmesi
 
 src/server/channels.ts          kanal server action'ları
-src/server/invites.ts           davet server action'ları
+src/server/invites.ts           davet server action'ları ('use server')
+src/server/invite-service.ts    claim/apply/consume — DÜZ modül, action DEĞİL
 src/server/members.ts           üye server action'ları
 src/server/profile.ts           profil kurulum action'ı
 
@@ -1734,6 +1735,16 @@ export const revokeInvite = defineAction({
     return { id: input.inviteId }
   },
 })
+
+> **Bu üç fonksiyon `src/server/invite-service.ts` içinde yaşar — `'use server'` YOK.**
+> `'use server'` işaretli bir modülün her export'u ağdan çağrılabilir bir uç
+> noktadır. `applyInvite` token istemez ve ADMIN rolü verir; action olarak
+> yayınlanırsa kimlik doğrulaması olmayan bir yetki yükseltme uç noktası olur.
+> Yalnızca `createInvite` ve `revokeInvite` action'dır ve `invites.ts`'te kalır.
+
+```ts
+// src/server/invite-service.ts  ('use server' YOK)
+```
 
 /**
  * Daveti ATOMİK olarak sahiplenir. Tek `updateMany`, tüm geçerlilik koşulları
