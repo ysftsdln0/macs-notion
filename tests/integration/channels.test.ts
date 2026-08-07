@@ -165,6 +165,38 @@ describe('removeChannelMember', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('CONFLICT')
   })
+
+  it('iki eş zamanlı istek aynı iki-LEAD\'li kanalın farklı LEAD\'lerini çıkarmaya çalışırsa yalnızca biri başarılı olur', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Çift Lider', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+    const promoted = await addChannelMember({
+      channelId: created.data.id, userId: plain.id, channelRole: 'LEAD',
+    })
+    if (!promoted.ok) throw new Error('beklenmedik hata')
+
+    // Aktör her iki çağrı için de admin (global ADMIN, üyelikten bağımsız
+    // yetkili) — testin kendi mock'u tek bir paylaşılan actorRef kullanıyor,
+    // Promise.all ile eş zamanlı iki farklı aktör simüle edilemez. Yarış,
+    // gerçek hedef (userId) farklılığında: admin'in kendisini ve plain'i aynı
+    // anda kanalın son iki LEAD'inden çıkarmaya çalışması.
+    const [r1, r2] = await Promise.all([
+      removeChannelMember({ channelId: created.data.id, userId: admin.id }),
+      removeChannelMember({ channelId: created.data.id, userId: plain.id }),
+    ])
+
+    const successCount = [r1, r2].filter((r) => r.ok).length
+    expect(successCount).toBe(1)
+    const failedResult = r1.ok ? r2 : r1
+    expect(failedResult.ok).toBe(false)
+    if (!failedResult.ok) expect(failedResult.error.code).toBe('CONFLICT')
+
+    const remainingLeads = await db.channelMember.count({
+      where: { channelId: created.data.id, channelRole: 'LEAD' },
+    })
+    expect(remainingLeads).toBeGreaterThanOrEqual(1)
+    expect(remainingLeads).toBe(1)
+  })
 })
 
 describe('listVisibleChannels', () => {

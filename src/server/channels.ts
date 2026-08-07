@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
@@ -40,19 +41,46 @@ async function authorizeChannelMembership(
 // kanal sahipsiz kalır. Admin de bu kuraldan muaf değildir: sorun kimin
 // yaptığı değil, kanalın liderisiz kalmasıdır (bkz. member:deactivate'teki
 // "admin kendini pasife alamaz" kuralıyla aynı gerekçe).
+//
+// `tx` alması bilinçli: sayım ve yazım (upsert/deleteMany) AYNI transaction
+// içinde olmalı. İki ayrı round-trip olsaydı (önce SELECT COUNT, sonra ayrı
+// bir UPDATE), aynı iki-LEAD'li kanalın farklı LEAD'lerini hedefleyen iki eş
+// zamanlı istek ikisi de "count === 2" okuyup ikisi de geçebilir — kanal
+// LEAD'siz kalır. Bu, projede read-then-write'ın bir invariant'ı kırdığı
+// üçüncü örnek (davet sahiplenme, onboarding sahiplenme, şimdi bu); aynı
+// şekilde kapatılır: kontrol ve yazım tek atomik birim.
 async function assertNotLastLead(
+  tx: Prisma.TransactionClient,
   channelId: string,
   userId: string,
   nextRole: 'LEAD' | 'MEMBER' | null,
 ): Promise<void> {
   if (nextRole === 'LEAD') return
-  const target = await db.channelMember.findUnique({
+  const target = await tx.channelMember.findUnique({
     where: { channelId_userId: { channelId, userId } },
   })
   if (!target || target.channelRole !== 'LEAD') return
-  const leadCount = await db.channelMember.count({ where: { channelId, channelRole: 'LEAD' } })
+  const leadCount = await tx.channelMember.count({ where: { channelId, channelRole: 'LEAD' } })
   if (leadCount <= 1) {
     throw actionError('CONFLICT', { channelRole: 'Kanalın son liderini çıkaramaz veya düşüremezsin.' })
+  }
+}
+
+// Serializable izolasyon, iki eş zamanlı üyelik değişikliği çakıştığında
+// Postgres'in birini commit'te reddetmesini sağlar (kaybeden P2034 alır).
+// Bu, assertNotLastLead'in "count <= 1" kontrolünün kaçırabileceği yarışları
+// veritabanı seviyesinde kapatır — iki kontrol de aynı garantiyi farklı
+// katmanlarda sağlar, biri diğerinin yedeği.
+async function runMembershipChange<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      throw actionError('CONFLICT', { channelRole: 'Aynı anda başka bir değişiklik yapıldı. Tekrar dene.' })
+    }
+    throw error
   }
 }
 
@@ -97,16 +125,19 @@ export const addChannelMember = defineAction({
   getActor,
   authorize: authorizeChannelMembership,
   handler: async ({ actor, input }) => {
-    await assertNotLastLead(input.channelId, input.userId, input.channelRole)
-    const member = await db.channelMember.upsert({
-      where: { channelId_userId: { channelId: input.channelId, userId: input.userId } },
-      create: { channelId: input.channelId, userId: input.userId, channelRole: input.channelRole },
-      update: { channelRole: input.channelRole },
-    })
-    await recordActivity(db, {
-      actorId: actor.id, verb: 'channel.memberAdded',
-      entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
-      channelId: input.channelId,
+    const member = await runMembershipChange(async (tx) => {
+      await assertNotLastLead(tx, input.channelId, input.userId, input.channelRole)
+      const upserted = await tx.channelMember.upsert({
+        where: { channelId_userId: { channelId: input.channelId, userId: input.userId } },
+        create: { channelId: input.channelId, userId: input.userId, channelRole: input.channelRole },
+        update: { channelRole: input.channelRole },
+      })
+      await recordActivity(tx, {
+        actorId: actor.id, verb: 'channel.memberAdded',
+        entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
+        channelId: input.channelId,
+      })
+      return upserted
     })
     return { id: member.id }
   },
@@ -117,14 +148,16 @@ export const removeChannelMember = defineAction({
   getActor,
   authorize: authorizeChannelMembership,
   handler: async ({ actor, input }) => {
-    await assertNotLastLead(input.channelId, input.userId, null)
-    await db.channelMember.deleteMany({
-      where: { channelId: input.channelId, userId: input.userId },
-    })
-    await recordActivity(db, {
-      actorId: actor.id, verb: 'channel.memberRemoved',
-      entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
-      channelId: input.channelId,
+    await runMembershipChange(async (tx) => {
+      await assertNotLastLead(tx, input.channelId, input.userId, null)
+      await tx.channelMember.deleteMany({
+        where: { channelId: input.channelId, userId: input.userId },
+      })
+      await recordActivity(tx, {
+        actorId: actor.id, verb: 'channel.memberRemoved',
+        entityType: 'Channel', entityId: input.channelId, meta: { userId: input.userId },
+        channelId: input.channelId,
+      })
     })
     return { ok: true as const }
   },
