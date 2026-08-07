@@ -1180,55 +1180,43 @@ Expected: FAIL — `toActor` bulunamadı
 // src/lib/auth/config.ts
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
-import Credentials from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { db } from '@/lib/db'
-
-/**
- * E2E testleri için parolasız test provider'ı.
- * GÜVENLİK: yalnızca E2E_AUTH_BYPASS=1 iken derlenir/etkinleşir.
- * Bu değişken production imajında ASLA set edilmez; compose.yml'de yoktur
- * ve deploy workflow'u onu geçirmez. Yanlışlıkla açılırsa
- * herhangi biri istediği kullanıcı kimliğiyle oturum açabilir.
- */
-const testProviders =
-  process.env.E2E_AUTH_BYPASS === '1'
-    ? [
-        Credentials({
-          id: 'e2e',
-          name: 'E2E',
-          credentials: { email: { label: 'email' } },
-          authorize: async (creds) => {
-            const email = typeof creds?.email === 'string' ? creds.email : null
-            if (!email) return null
-            return db.user.findUnique({ where: { email } })
-          },
-        }),
-      ]
-    : []
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
   session: { strategy: 'database' },
-  pages: { signIn: '/login' },
+  // Hata sayfası da /login'e döner: Auth.js'in kendi hata ekranı İngilizcedir.
+  pages: { signIn: '/login', error: '/login' },
   // Google, AUTH_GOOGLE_ID ve AUTH_GOOGLE_SECRET'ı ortamdan kendisi okur.
   // Değerleri elle geçirmek strict TS'te `string | undefined` hatası verir.
-  providers: [Google, ...testProviders],
+  providers: [Google],
   callbacks: {
     /**
      * Davet olmadan kimse giremez. Yeni kullanıcı yalnızca
      * /invite/[token] akışının kurduğu çerezle oluşturulabilir (Task 9).
      */
-    async signIn({ user, account }) {
-      if (account?.provider === 'e2e') return true
+    async signIn({ user }) {
       if (!user.email) return false
       const existing = await db.user.findUnique({ where: { email: user.email } })
       if (existing) return existing.isActive
       return true // yeni kullanıcı kontrolü davet akışında yapılır
     },
+    /**
+     * Oturum yanıtı daraltılır. Ham adaptör satırı `sessionToken` içerir ve
+     * `session` callback'i ne döndürürse /api/auth/session onu JSON olarak
+     * yayınlar — token oradan sızarsa httpOnly çerezin anlamı kalmaz.
+     */
     async session({ session, user }) {
-      session.user.id = user.id
-      return session
+      return {
+        expires: session.expires,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        },
+      }
     },
   },
 })
@@ -2896,14 +2884,42 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  use: { baseURL: 'http://localhost:3000' },
+  use: { baseURL: 'http://localhost:3100' },
   webServer: {
     command: 'pnpm build && pnpm start',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:3100',
     reuseExistingServer: !process.env.CI,
-    env: { E2E_AUTH_BYPASS: '1' },
   },
 })
+```
+
+**Testler nasıl giriş yapar:** uygulamada test amaçlı giriş yolu **yoktur**. Test, Auth.js'in okuduğu yeri doğrudan hazırlar: `Session` tablosuna satır yazar ve aynı opak token'ı çereze koyar. Böylece test, production'daki gerçek okuma yolunu doğrular — taklit etmez.
+
+```ts
+// tests/e2e/helpers/session.ts
+import { randomBytes } from 'node:crypto'
+import type { BrowserContext } from '@playwright/test'
+import { PrismaClient } from '@prisma/client'
+
+const db = new PrismaClient()
+
+export async function signInAs(context: BrowserContext, userId: string): Promise<void> {
+  const sessionToken = randomBytes(32).toString('hex')
+  await db.session.create({
+    data: { sessionToken, userId, expires: new Date(Date.now() + 864e5) },
+  })
+  await context.addCookies([
+    {
+      name: 'authjs.session-token', // https altında __Secure- ön eki gelir
+      value: sessionToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+      expires: Math.floor(Date.now() / 1000) + 86_400,
+    },
+  ])
+}
 ```
 
 - [ ] **Step 3: Seed script'ini yaz**
@@ -3017,23 +3033,14 @@ test('PRIVATE kanal üye olmayana 404 döner', async ({ page, context }) => {
     },
   })
 
-  // E2E provider ile yabancı olarak giriş yap
-  await page.goto('/login')
-  await page.request.post('/api/auth/callback/e2e', {
-    form: { email: outsider.email!, csrfToken: await getCsrf(page) },
-  })
+  await signInAs(context, outsider.id)
 
   const response = await page.goto(`/c/${channel.slug}`)
   expect(response?.status()).toBe(404)
-  await context.close()
 })
-
-async function getCsrf(page: import('@playwright/test').Page): Promise<string> {
-  const res = await page.request.get('/api/auth/csrf')
-  const body = (await res.json()) as { csrfToken: string }
-  return body.csrfToken
-}
 ```
+
+Dosyanın başına `import { signInAs } from './helpers/session'` eklenir.
 
 - [ ] **Step 6: Testleri çalıştır**
 
@@ -3048,8 +3055,6 @@ Expected: PASS (4 test)
       - run: pnpm prisma migrate deploy
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
-        env:
-          E2E_AUTH_BYPASS: '1'
 ```
 
 - [ ] **Step 8: Commit**
