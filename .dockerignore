@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+coverage
+tests
+docs
+README.md
+.github
+.superpowers
