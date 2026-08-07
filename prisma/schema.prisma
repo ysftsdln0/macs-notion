@@ -7,3 +7,146 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum GlobalRole {
+  ADMIN
+  MEMBER
+}
+
+enum ChannelRole {
+  LEAD
+  MEMBER
+}
+
+enum ChannelVisibility {
+  OPEN
+  PRIVATE
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?  @unique
+  avatarUrl   String?
+  title       String?
+  globalRole  GlobalRole @default(MEMBER)
+  isActive    Boolean  @default(true)
+  onboardedAt DateTime?
+  joinedAt    DateTime @default(now())
+
+  accounts       Account[]
+  sessions       Session[]
+  memberships    ChannelMember[]
+  createdChannels Channel[]      @relation("ChannelCreatedBy")
+  createdInvites Invite[]        @relation("InviteCreatedBy")
+  usedInvite     Invite?         @relation("InviteUsedBy")
+  activities     Activity[]
+
+  @@index([isActive])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  icon        String?
+  color       String?
+  description String?
+  visibility  ChannelVisibility @default(OPEN)
+  createdById String
+  createdAt   DateTime @default(now())
+  archivedAt  DateTime?
+
+  createdBy User            @relation("ChannelCreatedBy", fields: [createdById], references: [id])
+  members   ChannelMember[]
+  invites   Invite[]
+
+  @@index([archivedAt])
+}
+
+model ChannelMember {
+  id          String      @id @default(cuid())
+  channelId   String
+  userId      String
+  channelRole ChannelRole @default(MEMBER)
+  joinedAt    DateTime    @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id          String      @id @default(cuid())
+  tokenHash   String      @unique
+  globalRole  GlobalRole  @default(MEMBER)
+  channelId   String?
+  channelRole ChannelRole @default(MEMBER)
+  expiresAt   DateTime
+  createdById String
+  createdAt   DateTime    @default(now())
+  usedByUserId String?    @unique
+  usedAt      DateTime?
+  revokedAt   DateTime?
+
+  channel    Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdBy  User     @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  usedBy     User?    @relation("InviteUsedBy", fields: [usedByUserId], references: [id])
+
+  @@index([expiresAt])
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  actorId    String
+  verb       String
+  entityType String
+  entityId   String
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
