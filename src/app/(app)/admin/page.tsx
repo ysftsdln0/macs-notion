@@ -1,0 +1,78 @@
+import { notFound } from 'next/navigation'
+import { db } from '@/lib/db'
+import { requireActor } from '@/lib/auth/session'
+import { can } from '@/lib/auth/policy'
+import { CreateInviteForm } from './create-invite-form'
+import { RevokeInviteButton } from './revoke-invite-button'
+
+function inviteStatus(invite: {
+  usedBy: { name: string } | null
+  revokedAt: Date | null
+  expiresAt: Date
+}): string {
+  if (invite.usedBy) return `kullanıldı: ${invite.usedBy.name}`
+  if (invite.revokedAt) return 'iptal edildi'
+  if (invite.expiresAt < new Date()) return 'süresi doldu'
+  return 'bekliyor'
+}
+
+function isPending(invite: { usedByUserId: string | null; revokedAt: Date | null; expiresAt: Date }): boolean {
+  return !invite.usedByUserId && !invite.revokedAt && invite.expiresAt >= new Date()
+}
+
+export default async function AdminPage() {
+  const actor = await requireActor()
+  if (!can(actor, 'invite:list', { kind: 'invite' })) notFound()
+
+  const [invites, channels] = await Promise.all([
+    db.invite.findMany({
+      orderBy: { createdAt: 'desc' }, take: 50,
+      include: { channel: { select: { name: true } }, usedBy: { select: { name: true } } },
+    }),
+    db.channel.findMany({ where: { archivedAt: null }, orderBy: { name: 'asc' } }),
+  ])
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-8">
+      <h1 className="text-2xl font-semibold">Yönetim</h1>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium uppercase text-muted-foreground">Kanallar</h2>
+        {channels.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Henüz kanal yok.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {channels.map((c) => (
+              <li key={c.id}>
+                {c.name} · {c.visibility === 'PRIVATE' ? 'Sadece üyeler' : 'Tüm kulüp'}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium uppercase text-muted-foreground">Yeni davet</h2>
+        <CreateInviteForm channels={channels.map((c) => ({ id: c.id, name: c.name }))} />
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium uppercase text-muted-foreground">Davetler</h2>
+        {invites.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Henüz davet yok.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {invites.map((i) => (
+              <li key={i.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {i.channel?.name ?? 'Kanalsız'} · {inviteStatus(i)}
+                </span>
+                {isPending(i) && <RevokeInviteButton inviteId={i.id} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
