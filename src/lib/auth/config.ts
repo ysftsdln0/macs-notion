@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { hashInviteToken } from '@/lib/auth/invite-token'
 import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
+import { applyInvite, claimInvite } from '@/server/invites'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
@@ -25,14 +26,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const existing = await db.user.findUnique({ where: { email: user.email } })
       if (existing) return existing.isActive
 
-      // Yeni kullanıcı: yalnızca geçerli bir davet çerezi varsa hesap açılır.
-      // Bu kontrol olmadan Google hesabı olan herkes içeri girer.
+      // Yeni kullanıcı: davet BURADA sahiplenilir, sonraki isteğe bırakılmaz.
+      // Sadece doğrulayıp geçmek, aynı linkin sınırsız hesap açmasına yol
+      // açar: kullanıcı satırı bu callback true dönünce oluşur ve bir daha
+      // hiç davet kontrolünden geçmez.
       const store = await cookies()
       const token = store.get(INVITE_COOKIE)?.value
       if (!token) return false
-      const invite = await db.invite.findUnique({ where: { tokenHash: hashInviteToken(token) } })
-      if (!invite || invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()) return false
-      return true
+      return claimInvite(hashInviteToken(token))
     },
     /**
      * Oturum yanıtı daraltılır. Ham adaptör satırı `sessionToken` içerir ve
@@ -49,6 +50,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           image: user.image,
         },
       }
+    },
+  },
+  events: {
+    /**
+     * `signIn` daveti sahiplendi ama kullanıcı henüz yoktu. Satır oluşunca
+     * rol ve kanal üyeliği burada bağlanır. Sahiplenme başarısız olsaydı
+     * bu noktaya hiç gelinmezdi.
+     */
+    async createUser({ user }) {
+      if (!user.id) return
+      const store = await cookies()
+      const token = store.get(INVITE_COOKIE)?.value
+      if (!token) return
+      const invite = await db.invite.findUnique({
+        where: { tokenHash: hashInviteToken(token) },
+      })
+      if (!invite || invite.usedByUserId) return
+      await applyInvite(invite.id, user.id)
     },
   },
 })

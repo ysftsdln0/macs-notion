@@ -58,22 +58,37 @@ export const revokeInvite = defineAction({
 })
 
 /**
- * Davet kullanımı. Action değildir: kullanıcı bu noktada yeni oturum açmıştır,
- * yetki kontrolü token'ın kendisidir.
+ * Daveti ATOMİK olarak sahiplenir. Tek `updateMany`, tüm geçerlilik koşulları
+ * `where` içinde: iki eşzamanlı istekten yalnızca biri `count === 1` alır.
+ * Ayrı bir "önce oku, sonra yaz" adımı bırakılmaz — aradaki boşluk bir daveti
+ * birden çok hesaba açar.
  */
-export async function consumeInvite(
-  token: string,
+export async function claimInvite(tokenHash: string): Promise<boolean> {
+  const claimed = await db.invite.updateMany({
+    where: {
+      tokenHash,
+      usedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { usedAt: new Date() },
+  })
+  return claimed.count === 1
+}
+
+/**
+ * Sahiplenilmiş davetin etkilerini uygular. Sahiplenme ile ayrı tutulur:
+ * kullanıcı satırı ancak kabul kararından SONRA var olur.
+ */
+export async function applyInvite(
+  inviteId: string,
   userId: string,
 ): Promise<Result<{ channelId: string | null }>> {
-  const invite = await db.invite.findUnique({ where: { tokenHash: hashInviteToken(token) } })
+  const invite = await db.invite.findUnique({ where: { id: inviteId } })
   if (!invite) return fail('NOT_FOUND')
-  if (invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()) return fail('CONFLICT')
 
   await db.$transaction(async (tx) => {
-    await tx.invite.update({
-      where: { id: invite.id, usedAt: null },
-      data: { usedAt: new Date(), usedByUserId: userId },
-    })
+    await tx.invite.update({ where: { id: invite.id }, data: { usedByUserId: userId } })
     if (invite.globalRole === 'ADMIN') {
       await tx.user.update({ where: { id: userId }, data: { globalRole: 'ADMIN' } })
     }
@@ -91,4 +106,20 @@ export async function consumeInvite(
   })
 
   return ok({ channelId: invite.channelId })
+}
+
+/**
+ * Zaten giriş yapmış kullanıcı için davet kullanımı (ikinci bir kanala davet).
+ * Action değildir: yetki kontrolü token'ın kendisidir. Önce sahiplenir,
+ * sonra uygular.
+ */
+export async function consumeInvite(
+  token: string,
+  userId: string,
+): Promise<Result<{ channelId: string | null }>> {
+  const tokenHash = hashInviteToken(token)
+  const invite = await db.invite.findUnique({ where: { tokenHash } })
+  if (!invite) return fail('NOT_FOUND')
+  if (!(await claimInvite(tokenHash))) return fail('CONFLICT')
+  return applyInvite(invite.id, userId)
 }

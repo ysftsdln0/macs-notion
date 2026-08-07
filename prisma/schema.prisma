@@ -39,7 +39,7 @@ model User {
   memberships    ChannelMember[]
   createdChannels Channel[]      @relation("ChannelCreatedBy")
   createdInvites Invite[]        @relation("InviteCreatedBy")
-  usedInvite     Invite?         @relation("InviteUsedBy")
+  usedInvites    Invite[]        @relation("InviteUsedBy")
   activities     Activity[]
 
   @@index([isActive])
@@ -125,7 +125,7 @@ model Invite {
   expiresAt   DateTime
   createdById String
   createdAt   DateTime    @default(now())
-  usedByUserId String?    @unique
+  usedByUserId String?
   usedAt      DateTime?
   revokedAt   DateTime?
 

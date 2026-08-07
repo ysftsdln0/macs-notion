@@ -10,8 +10,13 @@ import { Button } from '@/components/ui/button'
 
 export default async function InvitePage({
   params,
-}: { params: Promise<{ token: string }> }) {
+  searchParams,
+}: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ hata?: string }>
+}) {
   const { token } = await params
+  const failed = (await searchParams).hata === '1'
   const invite = await db.invite.findUnique({
     where: { tokenHash: hashInviteToken(token) },
     include: { channel: true },
@@ -31,11 +36,40 @@ export default async function InvitePage({
     )
   }
 
-  // Zaten giriş yapmışsa daveti hemen kullan.
+  // Zaten giriş yapmışsa: onay iste. Render sırasında tüketmek yanlış olur —
+  // tarayıcı ön yüklemesi (prefetch) daveti tıklamadan yakabilir ve üçüncü
+  // bir taraf, oturumu açık kurbanı istemediği bir daveti kullanmaya
+  // zorlayabilir (oturum çerezi sameSite=lax olduğu için üst düzey
+  // gezinmede gönderilir).
   const actor = await getActor()
   if (actor) {
-    await consumeInvite(token, actor.id)
-    redirect('/')
+    return (
+      <main className="flex min-h-dvh items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6 text-center">
+          <h1 className="text-2xl font-semibold">Davetiye</h1>
+          {invite.channel && (
+            <p className="text-sm text-muted-foreground">
+              <strong>{invite.channel.name}</strong> kanalına ekleneceksin.
+            </p>
+          )}
+          <form
+            action={async () => {
+              'use server'
+              const result = await consumeInvite(token, actor.id)
+              if (!result.ok) redirect(`/invite/${token}?hata=1`)
+              redirect('/')
+            }}
+          >
+            <Button type="submit" className="w-full">Daveti kabul et</Button>
+          </form>
+          {failed && (
+            <p className="text-sm text-destructive">
+              Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.
+            </p>
+          )}
+        </div>
+      </main>
+    )
   }
 
   return (
