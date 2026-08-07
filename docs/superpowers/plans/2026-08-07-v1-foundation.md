@@ -1000,7 +1000,7 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
 - [ ] **Step 4: Testi çalıştır**
 
 Run: `pnpm vitest run tests/unit/policy.test.ts`
-Expected: PASS (13 test)
+Expected: PASS (14 test)
 
 - [ ] **Step 5: Commit**
 
