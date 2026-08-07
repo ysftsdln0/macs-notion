@@ -1999,7 +1999,7 @@ git commit -m "feat: add invite creation, revocation and redemption flow"
 - Test: `tests/integration/profile.test.ts`
 
 **Interfaces:**
-- Consumes: `defineAction` (Task 8), `consumeInvite` (Task 9)
+- Consumes: `defineAction` (Task 8), `INVITE_COOKIE` (Task 9)
 - Produces: `completeOnboarding({ name, title })` → `Result<{ id: string }>`; `User.onboardedAt` dolar.
 
 - [ ] **Step 1: Başarısız olacak testi yaz**
@@ -2115,7 +2115,6 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { consumeInvite } from '@/server/invites'
 import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
 import { ProfileForm } from './profile-form'
 
