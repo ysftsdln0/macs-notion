@@ -23,6 +23,7 @@ Bu bölüm her task'ın gereksinimlerine örtük olarak dahildir.
 - **Arayüzde "Private" kelimesi kullanılmaz.** Doküman görünürlüğü etiketi "Sadece ben", alt not "Yöneticiler erişebilir". Kod içindeki enum `PRIVATE` olarak kalır.
 - **Paket yöneticisi pnpm**, Node 22.
 - **Commit mesajları Conventional Commits.**
+- **Yerel port haritası:** geliştirme makinesinde 5432 ve 3000 başka bir proje tarafından tutuluyor. Bu yüzden **Postgres host portu 5433**, **web dev/start portu 3100**. Container içi portlar (5432, 3000) ve CI/production portları değişmez — yalnızca host tarafındaki eşleme kayar. Buna bağlı olarak yerel `DATABASE_URL` 5433'e, `AUTH_URL` `http://localhost:3100`'e işaret eder.
 
 ---
 
