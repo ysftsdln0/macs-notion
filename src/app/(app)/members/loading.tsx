@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
-export default function AppLoading() {
+export default function MembersLoading() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Skeleton className="h-8 w-48" />
