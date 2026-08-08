@@ -19,7 +19,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/macs_test
       AUTH_SECRET: ci-only-not-a-real-secret
-      AUTH_URL: http://localhost:3000
+      # Playwright's webServer builds and starts the app on port 3100
+      # (playwright.config.ts, package.json's build/start scripts) — this
+      # must match or Auth.js's own idea of its origin is wrong for the
+      # server the E2E suite actually talks to.
+      AUTH_URL: http://localhost:3100
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,9 +31,17 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # pnpm's build-script security gate blocks @prisma/client's postinstall
+      # (prisma generate) on a fresh install — confirmed by reproducing a
+      # clean checkout locally: `pnpm install --frozen-lockfile` alone left
+      # node_modules/.prisma missing entirely and `pnpm typecheck` failed
+      # with "no exported member 'PrismaClient'" across every file that
+      # imports it. Running `prisma generate` directly (not a lifecycle
+      # hook) isn't subject to that gate, so this is the explicit fix.
+      - run: pnpm exec prisma generate
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
       - run: pnpm prisma migrate deploy
+      - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e

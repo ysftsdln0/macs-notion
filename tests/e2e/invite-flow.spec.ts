@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
 import { createInviteToken } from '../../src/lib/auth/invite-token'
@@ -5,8 +6,12 @@ import { createInviteToken } from '../../src/lib/auth/invite-token'
 const db = new PrismaClient()
 
 test('süresi dolmuş davet reddedilir', async ({ page }) => {
+  // Date.now() tek başına yeterli değil: Playwright iki worker'ı paralel
+  // çalıştırıyor, aynı milisaniyede farklı worker'ların üreteceği e-posta
+  // User.email tekil kısıtına çarpabilirdi. randomUUID eki bunu imkansız kılar.
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
   const admin = await db.user.create({
-    data: { name: 'Admin', email: `a-${Date.now()}@x.com`, globalRole: 'ADMIN', onboardedAt: new Date() },
+    data: { name: 'Admin', email: `a-${stamp}@x.com`, globalRole: 'ADMIN', onboardedAt: new Date() },
   })
   const { token, tokenHash } = createInviteToken()
   await db.invite.create({

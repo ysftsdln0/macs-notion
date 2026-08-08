@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
 import { signInAs } from './helpers/session'
@@ -11,7 +12,10 @@ test("oturumsuz kullanıcı uygulamaya giremez, login'e yönlenir", async ({ pag
 })
 
 test('PRIVATE kanal üye olmayana 404 döner ve bilinmeyen kanaldan ayırt edilemez', async ({ page, context }) => {
-  const stamp = Date.now()
+  // Date.now() tek başına yeterli değil: Playwright iki worker'ı paralel
+  // çalıştırıyor, aynı milisaniyede farklı worker'ların üreteceği e-posta
+  // User.email tekil kısıtına çarpabilirdi. randomUUID eki bunu imkansız kılar.
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
   const owner = await db.user.create({
     data: { name: 'Sahip', email: `o-${stamp}@x.com`, onboardedAt: new Date() },
   })
