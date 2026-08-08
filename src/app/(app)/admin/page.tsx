@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
+import { EmptyState } from '@/components/state/empty-state'
 import { CreateInviteForm } from './create-invite-form'
 import { RevokeInviteButton } from './revoke-invite-button'
 
@@ -39,7 +40,7 @@ export default async function AdminPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium uppercase text-muted-foreground">Kanallar</h2>
         {channels.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Henüz kanal yok.</p>
+          <EmptyState title="Kanal yok" description="Henüz hiç kanal oluşturulmadı." />
         ) : (
           <ul className="space-y-1 text-sm">
             {channels.map((c) => (
@@ -59,7 +60,7 @@ export default async function AdminPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium uppercase text-muted-foreground">Davetler</h2>
         {invites.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Henüz davet yok.</p>
+          <EmptyState title="Davet yok" description="Yukarıdaki formla yeni bir davet oluşturarak başlayabilirsin." />
         ) : (
           <ul className="space-y-1 text-sm">
             {invites.map((i) => (

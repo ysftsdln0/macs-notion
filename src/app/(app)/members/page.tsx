@@ -13,7 +13,17 @@ export default async function MembersPage() {
   const members = await db.user.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
-    include: { memberships: { include: { channel: { select: { name: true } } } } },
+    // Açık select: email ve diğer kişisel alanlar hiç çekilmez, sayfada
+    // gösterilmeyen veri sorgu sonucunda da yer almaz.
+    select: {
+      id: true,
+      name: true,
+      title: true,
+      globalRole: true,
+      memberships: {
+        select: { channel: { select: { id: true, name: true, visibility: true } } },
+      },
+    },
   })
 
   if (members.length === 0) {
@@ -21,6 +31,21 @@ export default async function MembersPage() {
   }
 
   const isAdmin = actor.globalRole === 'ADMIN'
+  const viewerChannelIds = new Set(actor.memberships.map((m) => m.channelId))
+
+  // Kanal görünürlüğü channel:read ile aynı kural izler: OPEN kanal
+  // herkese, PRIVATE kanal yalnızca üyesine ve admin'e görünür. Bu filtre
+  // olmadan, "Kanallar" sütunu herhangi bir aktif üyeye üyesi olmadığı
+  // PRIVATE kanalların adını ve kimlerin orada olduğunu sızdırırdı.
+  // Sunucu tarafında filtrelenir — render edilip sonra istemcide gizlenmez.
+  function visibleChannelNames(memberships: (typeof members)[number]['memberships']): string {
+    return (
+      memberships
+        .filter(({ channel }) => channel.visibility === 'OPEN' || isAdmin || viewerChannelIds.has(channel.id))
+        .map(({ channel }) => channel.name)
+        .join(', ') || '—'
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -41,7 +66,7 @@ export default async function MembersPage() {
               <td className="py-2">{m.name}</td>
               <td>{m.title ?? '—'}</td>
               <td>{m.globalRole === 'ADMIN' ? 'Yönetici' : 'Üye'}</td>
-              <td>{m.memberships.map((x) => x.channel.name).join(', ') || '—'}</td>
+              <td>{visibleChannelNames(m.memberships)}</td>
               {isAdmin && (
                 <td className="py-2 text-right">
                   <MemberActions userId={m.id} globalRole={m.globalRole} isSelf={m.id === actor.id} />
