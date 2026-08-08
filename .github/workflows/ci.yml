@@ -27,17 +27,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
+        # No explicit version: action-setup reads package.json's
+        # "packageManager" field (pnpm@10.23.0) so CI can never drift from
+        # what the project actually declares.
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      # pnpm's build-script security gate blocks @prisma/client's postinstall
-      # (prisma generate) on a fresh install — confirmed by reproducing a
-      # clean checkout locally: `pnpm install --frozen-lockfile` alone left
-      # node_modules/.prisma missing entirely and `pnpm typecheck` failed
-      # with "no exported member 'PrismaClient'" across every file that
-      # imports it. Running `prisma generate` directly (not a lifecycle
-      # hook) isn't subject to that gate, so this is the explicit fix.
+      # pnpm 10's default-deny build-script gate blocks @prisma/client's
+      # postinstall (prisma generate) on a fresh install — confirmed by
+      # reproducing a clean checkout locally on pnpm 10.23.0 (the version
+      # this job now runs via "packageManager" above): a bare
+      # `pnpm install --frozen-lockfile` left node_modules/.prisma missing
+      # entirely and `pnpm typecheck` failed with "no exported member
+      # 'PrismaClient'" across every file that imports it. Running
+      # `prisma generate` directly (not a lifecycle hook) isn't subject to
+      # that gate, so this is the explicit, required fix on pnpm 10.
       - run: pnpm exec prisma generate
       - run: pnpm typecheck
       - run: pnpm lint
