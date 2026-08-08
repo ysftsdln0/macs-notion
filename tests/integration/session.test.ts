@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Session } from 'next-auth'
 import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
 
 vi.mock('@/lib/auth/config', () => ({ auth: vi.fn() }))
 
@@ -12,9 +13,7 @@ import { getActor, toActor } from '@/lib/auth/session'
 const mockedAuth = auth as unknown as Mock<() => Promise<Session | null>>
 
 beforeEach(async () => {
-  await db.channelMember.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetDb()
   mockedAuth.mockReset()
 })
 

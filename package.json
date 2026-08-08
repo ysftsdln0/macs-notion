@@ -14,7 +14,12 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "test:e2e": "playwright test"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -35,6 +40,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -44,6 +50,7 @@
     "eslint-config-next": "16.3.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.11",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.10"

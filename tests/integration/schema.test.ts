@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
 
 beforeEach(async () => {
-  await db.activity.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.invite.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetDb()
 })
 
 describe('şema', () => {

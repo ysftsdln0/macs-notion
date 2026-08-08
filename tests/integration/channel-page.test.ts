@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
 
 const actorRef: { current: { id: string; globalRole: 'ADMIN' | 'MEMBER' } | null } = { current: null }
 
@@ -36,10 +37,7 @@ let admin: { id: string }
 let plain: { id: string }
 
 beforeEach(async () => {
-  await db.activity.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetDb()
   admin = await db.user.create({ data: { name: 'Admin', globalRole: 'ADMIN' } })
   plain = await db.user.create({ data: { name: 'Üye' } })
 })

@@ -2,16 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
 import { applyInvite, claimInvite, consumeInvite } from '@/server/invite-service'
 import { createInviteToken } from '@/lib/auth/invite-token'
+import { resetDb } from '../helpers/reset-db'
 
 let adminId: string
 let channelId: string
 
 beforeEach(async () => {
-  await db.activity.deleteMany()
-  await db.invite.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetDb()
 
   const admin = await db.user.create({ data: { name: 'Admin', globalRole: 'ADMIN' } })
   adminId = admin.id

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
 
 const actorRef: { current: { id: string } | null } = { current: null }
 vi.mock('@/lib/auth/session', async (importOriginal) => ({
@@ -14,11 +15,7 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
 const { completeOnboarding } = await import('@/server/profile')
 
 beforeEach(async () => {
-  await db.activity.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.invite.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetDb()
 })
 
 describe('completeOnboarding', () => {
