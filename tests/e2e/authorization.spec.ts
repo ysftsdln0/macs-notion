@@ -49,4 +49,22 @@ test('PRIVATE kanal üye olmayana 404 döner ve bilinmeyen kanaldan ayırt edile
   expect(unknownResponse?.status()).toBe(404)
 
   expect(forbiddenResponse?.status()).toBe(unknownResponse?.status())
+
+  // I4 regresyon testi: her iki durum da Next'in İngilizce yerleşik 404
+  // sayfası yerine projenin kendi Türkçe not-found.tsx'ini göstermeli — ve
+  // ikisi birebir aynı metni göstermeli (aksi halde metin farkı, durum kodu
+  // eşitliğinin gizlediği aynı sızıntıyı geri açardı).
+  const unknownBody = (await unknownResponse?.text()) ?? ''
+  expect(forbiddenBody).toContain('Sayfa bulunamadı')
+  expect(forbiddenBody).not.toContain('This page could not be found')
+  expect(unknownBody).toContain('Sayfa bulunamadı')
+  expect(unknownBody).not.toContain('This page could not be found')
+})
+
+test('tamamen bilinmeyen bir rota da Türkçe not-found sayfasını gösterir', async ({ page }) => {
+  const response = await page.goto('/hic-var-olmayan-bir-rota-xyz')
+  expect(response?.status()).toBe(404)
+  const body = (await response?.text()) ?? ''
+  expect(body).toContain('Sayfa bulunamadı')
+  expect(body).not.toContain('This page could not be found')
 })
