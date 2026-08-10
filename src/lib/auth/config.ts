@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth'
+import NextAuth, { type NextAuthConfig } from 'next-auth'
 import Google from 'next-auth/providers/google'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { cookies } from 'next/headers'
@@ -7,8 +7,19 @@ import { hashInviteToken } from '@/lib/auth/invite-token'
 import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
 import { applyInvite, claimInvite } from '@/server/invite-service'
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
+// Adaptör ayrı bir sabitte: hem NextAuth() yapılandırmasında kullanılır hem
+// de testler `createUser`'ı Auth.js'in gerçekten çağırdığı şekilde —
+// `@auth/core`'un adaptöre verdiği ham profille — tetikleyebilsin diye
+// doğrudan export edilir (bkz. tests/integration/registration-flow.test.ts).
+export const adapter = PrismaAdapter(db)
+
+// `callbacks`/`events` ayrı bir `authConfig` sabitinde: testler `signIn` ve
+// `createUser`'ı `vi.mock('@/lib/auth/config')` ARKASINA gizlemeden,
+// gerçek DB'ye karşı doğrudan çağırabilsin diye export edilir. Bu satırda
+// mock'lanan tek şey `next/headers`'ın `cookies()`'i (platform ilkeli) —
+// modülün kendisi değil.
+export const authConfig: NextAuthConfig = {
+  adapter,
   session: { strategy: 'database' },
   // Hata sayfası da /login'e döner: Auth.js'in kendi hata ekranı İngilizcedir.
   pages: { signIn: '/login', error: '/login' },
@@ -26,10 +37,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const existing = await db.user.findUnique({ where: { email: user.email } })
       if (existing) return existing.isActive
 
-      // Yeni kullanıcı: davet BURADA sahiplenilir, sonraki isteğe bırakılmaz.
-      // Sadece doğrulayıp geçmek, aynı linkin sınırsız hesap açmasına yol
-      // açar: kullanıcı satırı bu callback true dönünce oluşur ve bir daha
-      // hiç davet kontrolünden geçmez.
+      // Yeni kullanıcı: davet BURADA rezerve edilir, sonraki isteğe
+      // bırakılmaz. Sadece doğrulayıp geçmek, aynı linkin sınırsız hesap
+      // açmasına yol açar. Rezervasyon KALICI değildir — `createUser` bu
+      // callback'ten SONRA çalışır ve adaptör hatası ya da ağ kopması
+      // yüzünden hiç tamamlanmayabilir; kalıcı tüketim `applyInvite`
+      // içinde, `createUser` event'inde gerçekleşir (bkz. invite-service.ts).
       const store = await cookies()
       const token = store.get(INVITE_COOKIE)?.value
       if (!token) return false
@@ -54,18 +67,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   events: {
     /**
-     * `signIn` daveti sahiplendi ama kullanıcı henüz yoktu. Satır oluşunca
-     * rol ve kanal üyeliği burada bağlanır. Sahiplenme başarısız olsaydı
+     * `signIn` daveti rezerve etti ama kullanıcı henüz yoktu. Satır oluşunca
+     * rol ve kanal üyeliği burada bağlanır VE rezervasyon kalıcı tüketime
+     * çevrilir (`applyInvite` içinde `usedAt`). Rezervasyon başarısız olsaydı
      * bu noktaya hiç gelinmezdi.
      *
      * `applyInvite` burada BİLEREK try/catch içinde: Auth.js akışı
      * `createUser` → bu event → `linkAccount` → `createSession` şeklinde
      * ilerler ve hiçbiri korumalı değildir. Hata burada yutulmazsa kullanıcı
      * satırı hesabı bağlanmadan kalır; bir sonraki girişte Auth.js
-     * `AccountNotLinked` fırlatır ve hesap kalıcı olarak kilitlenir — davet
-     * zaten yanmış, kimse yeniden denemez. Rol/kanal ataması yapılmamış ama
-     * giriş yapabilen bir kullanıcı adminin düzeltebileceği bir durumdur;
-     * bağlanamayan bir hesap değildir.
+     * `AccountNotLinked` fırlatır ve hesap kalıcı olarak kilitlenir. Rol/kanal
+     * ataması yapılmamış ama giriş yapabilen bir kullanıcı adminin
+     * düzeltebileceği bir durumdur; bağlanamayan bir hesap değildir.
+     *
+     * Not: bu hata durumunda davet kalıcı tüketilmemiş kalır (`usedAt` set
+     * edilmez, transaction hiç commit olmaz) — rezervasyon TTL sonunda
+     * kendiliğinden serbest kalır, davet yanmaz.
      */
     async createUser({ user }) {
       if (!user.id) return
@@ -77,10 +94,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       })
       if (!invite || invite.usedByUserId) return
       try {
-        await applyInvite(invite.id, user.id)
+        const result = await applyInvite(invite.id, user.id)
+        // `CONFLICT` artık gerçekten ulaşılabilir: rezervasyon TTL'i geçip
+        // davet başka biri tarafından yeniden rezerve/tüketilmişse (bkz.
+        // invite-service.ts `claimInvite`), bu geç kalmış çağrı burada elenir.
+        if (!result.ok) {
+          console.warn('[auth] davet uygulanamadı (rezervasyon TTL sonrası çakışma olabilir)', {
+            inviteId: invite.id, userId: user.id, code: result.error.code,
+          })
+        }
       } catch (error) {
         console.error('[auth] davet uygulanamadı', { inviteId: invite.id, userId: user.id }, error)
       }
     },
   },
-})
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig)

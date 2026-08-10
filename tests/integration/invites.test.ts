@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
-import { applyInvite, claimInvite, consumeInvite } from '@/server/invite-service'
+import {
+  applyInvite,
+  claimInvite,
+  consumeInvite,
+  INVITE_RESERVATION_TTL_MS,
+} from '@/server/invite-service'
 import { createInviteToken } from '@/lib/auth/invite-token'
 import { resetDb } from '../helpers/reset-db'
 
@@ -158,7 +163,7 @@ describe('claimInvite', () => {
     await expect(claimInvite('bilinmeyen-hash')).resolves.toBe(false)
   })
 
-  it('zaten kullanılmış davet için false döner', async () => {
+  it('rezervasyon TTL süresi içindeyken ikinci rezervasyon denemesi false döner', async () => {
     const { tokenHash } = await seedInvite()
     await expect(claimInvite(tokenHash)).resolves.toBe(true)
     await expect(claimInvite(tokenHash)).resolves.toBe(false)
@@ -187,6 +192,21 @@ describe('claimInvite', () => {
 
     expect([a, b].filter(Boolean)).toHaveLength(1)
   })
+
+  it('rezervasyon TTL süresi geçince yeniden rezerve edilebilir hale gelir (C1: davet kalıcı yanmaz)', async () => {
+    const { tokenHash } = await seedInvite()
+    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+
+    // TTL'in geçmiş olduğunu simüle et: gerçek hayatta bu, signIn'in
+    // rezerve ettiği ama createUser'ın (adaptör hatası, ağ kopması, Google
+    // ekranında vazgeçme) hiç tamamlamadığı bir denemenin sonucu olur.
+    await db.invite.updateMany({
+      where: { tokenHash },
+      data: { reservedAt: new Date(Date.now() - INVITE_RESERVATION_TTL_MS - 1000) },
+    })
+
+    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+  })
 })
 
 describe('applyInvite', () => {
@@ -214,5 +234,88 @@ describe('applyInvite', () => {
     const r = await applyInvite('bilinmeyen-id', user.id)
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('NOT_FOUND')
+  })
+
+  it('eşzamanlı iki applyInvite çağrısından yalnızca biri kalıcı tüketimi kazanır (C1: reserve + confirm çift katmanlı atomik)', async () => {
+    const { inviteId, tokenHash } = await seedInvite()
+    await claimInvite(tokenHash)
+    const userA = await db.user.create({ data: { name: 'M', email: 'm@x.com' } })
+    const userB = await db.user.create({ data: { name: 'N', email: 'n@x.com' } })
+
+    const [a, b] = await Promise.all([applyInvite(inviteId, userA.id), applyInvite(inviteId, userB.id)])
+    const results = [a, b]
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    const conflicts = results.filter((r) => !r.ok)
+    expect(conflicts).toHaveLength(1)
+    if (!conflicts[0]?.ok) expect(conflicts[0]?.error.code).toBe('CONFLICT')
+
+    const invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
+    expect([userA.id, userB.id]).toContain(invite.usedByUserId)
+    // Kaybeden tarafta hiçbir yan etki (kanal üyeliği) oluşmamalı.
+    const loserId = invite.usedByUserId === userA.id ? userB.id : userA.id
+    const loserMembership = await db.channelMember.findUnique({
+      where: { channelId_userId: { channelId, userId: loserId } },
+    })
+    expect(loserMembership).toBeNull()
+  })
+})
+
+describe('davet rezervasyonu — kayıt yolu ucu ucuna (C1)', () => {
+  it('rezervasyon sonrası kayıt hiç tamamlanmazsa davet kalıcı yanmaz; TTL sonunda yeniden denenip başarıyla bitirilebilir', async () => {
+    const { tokenHash, inviteId } = await seedInvite()
+
+    // 1) signIn callback'i daveti rezerve eder (createUser'dan ÖNCE).
+    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+
+    // 2) createUser HİÇ ÇALIŞMAZ (adaptör hatası, ağ kopması, kullanıcı
+    // Google ekranında vazgeçer...). `applyInvite` çağrılmaz. Davet henüz
+    // kalıcı tüketilmiş DEĞİLDİR.
+    let invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
+    expect(invite.usedAt).toBeNull()
+    expect(invite.usedByUserId).toBeNull()
+
+    // 3) TTL süresi geçer.
+    await db.invite.updateMany({
+      where: { id: inviteId },
+      data: { reservedAt: new Date(Date.now() - INVITE_RESERVATION_TTL_MS - 1000) },
+    })
+
+    // 4) Kullanıcı aynı linki tekrar açar: ikinci deneme rezerve edip
+    // başarıyla tamamlayabilir — davet "yanmamış".
+    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+    const user = await db.user.create({ data: { name: 'İkinci Deneme', email: 'ikinci@x.com' } })
+    const result = await applyInvite(inviteId, user.id)
+    expect(result.ok).toBe(true)
+
+    invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
+    expect(invite.usedByUserId).toBe(user.id)
+    expect(invite.usedAt).not.toBeNull()
+  })
+
+  it('eş zamanlı iki tam kayıt denemesi (rezerve + uygula) tek hesaba izin verir', async () => {
+    const { tokenHash, inviteId } = await seedInvite({ globalRole: 'ADMIN' })
+    const userA = await db.user.create({ data: { name: 'Eş A', email: 'esa@x.com' } })
+    const userB = await db.user.create({ data: { name: 'Eş B', email: 'esb@x.com' } })
+
+    async function attemptRegistration(userId: string) {
+      const gotReservation = await claimInvite(tokenHash)
+      if (!gotReservation) return { ok: false as const }
+      return applyInvite(inviteId, userId)
+    }
+
+    const [a, b] = await Promise.all([attemptRegistration(userA.id), attemptRegistration(userB.id)])
+    const succeeded = [a, b].filter((r) => r.ok)
+    expect(succeeded).toHaveLength(1)
+
+    // Yalnızca davetin ADMIN rolü kazanan kişiyi say — `beforeEach` zaten
+    // ayrı bir ADMIN kanal sahibi (`adminId`) yaratıyor, bu satır ondan
+    // etkilenmemeli.
+    const [refreshedA, refreshedB] = await Promise.all([
+      db.user.findUniqueOrThrow({ where: { id: userA.id } }),
+      db.user.findUniqueOrThrow({ where: { id: userB.id } }),
+    ])
+    const newAdmins = [refreshedA, refreshedB].filter((u) => u.globalRole === 'ADMIN')
+    expect(newAdmins).toHaveLength(1)
   })
 })
