@@ -37,6 +37,19 @@ async function authorizeChannelMembership(
   return { allowed: true as const }
 }
 
+// addChannelMember'ın hedef userId'si bir formdan (ya da forge edilmiş bir
+// istekten) gelir; var olduğu garanti değildir. Kontrol olmadan upsert
+// doğrudan ChannelMember_userId_fkey'e (P2003) çarpar ve defineAction'ın
+// genel catch-all'ında opak bir INTERNAL'a düşer — kullanıcıya "beklenmeyen
+// bir hata" gösterir, oysa gerçek sebep net ve beklenen bir durumdur.
+// `tx` alması bilinçli: assertNotLastLead ve upsert ile aynı transaction
+// içinde çalışır, aradaki tutarlılık için ekstra bir garanti gerekmez —
+// burada korunan bir yarış değil, girdi doğruluğu.
+async function assertTargetUserExists(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  const target = await tx.user.findUnique({ where: { id: userId } })
+  if (!target) throw actionError('NOT_FOUND')
+}
+
 // Bir kanalın son LEAD'i çıkarılamaz ya da MEMBER'a düşürülemez — aksi halde
 // kanal sahipsiz kalır. Admin de bu kuraldan muaf değildir: sorun kimin
 // yaptığı değil, kanalın liderisiz kalmasıdır (bkz. member:deactivate'teki
@@ -126,6 +139,7 @@ export const addChannelMember = defineAction({
   authorize: authorizeChannelMembership,
   handler: async ({ actor, input }) => {
     const member = await runMembershipChange(async (tx) => {
+      await assertTargetUserExists(tx, input.userId)
       await assertNotLastLead(tx, input.channelId, input.userId, input.channelRole)
       const upserted = await tx.channelMember.upsert({
         where: { channelId_userId: { channelId: input.channelId, userId: input.userId } },

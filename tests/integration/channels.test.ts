@@ -113,6 +113,24 @@ describe('addChannelMember', () => {
     if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
   })
 
+  // M21 regresyon testi: addChannelMember, eklenecek userId'nin gerçekten
+  // var olduğunu hiç kontrol etmiyordu — upsert'in FK kısıtına (P2003)
+  // çarpıp defineAction'ın genel catch-all'ında opak bir INTERNAL'a
+  // dönüşüyordu. Üye ekleme artık UI'dan erişilebilir (a1a7bc5, üye seçici
+  // formu), bu yüzden bugün canlı: forged bir userId veya silinen/asla var
+  // olmamış bir cuid ile POST edilen bir form aynı sonucu üretirdi.
+  it('var olmayan bir kullanıcı kanala eklenemez', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+    const created = await createChannel({ name: 'Hayalet', visibility: 'OPEN' })
+    if (!created.ok) throw new Error('beklenmedik hata')
+
+    const r = await addChannelMember({
+      channelId: created.data.id, userId: 'cnonexistentuser000000', channelRole: 'MEMBER',
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('NOT_FOUND')
+  })
+
   it('kanalın son liderini MEMBER\'a düşürmek reddedilir', async () => {
     actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
     const created = await createChannel({ name: 'Tek Lider', visibility: 'OPEN' })
