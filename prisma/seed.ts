@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { pathToFileURL } from 'node:url'
 import { createInviteToken } from '../src/lib/auth/invite-token'
 
@@ -15,26 +15,68 @@ type SeedResult =
  * Davetli linki açıp Google ile girer; `events.createUser` onu ADMIN yapar
  * ve ilk kanalı kendisi açar. Böylece ilk kullanıcı da herkesle aynı
  * yoldan girer — giriş akışında kuruluma özel bir istisna yoktur.
+ *
+ * Hem "kullanıcı var mı" hem "bekleyen kurulum daveti var mı" kontrolleri
+ * ile ekleme aynı Serializable transaction içindedir — READ COMMITTED'da bu
+ * check-then-act'ti: iki ayrı await arasında commit olan bir satır kontrolden
+ * kaçardı. Bu projede aynı desen (davet sahiplenme, onboarding sahiplenme,
+ * son-LEAD koruması) hep aynı şekilde kapatıldı: okuma da yazma da tek
+ * transaction'da, çakışan taraf P2034 alır. Burada CLI olduğu için (server
+ * action değil) P2034 fırlatılmaz, Türkçe `{ ok: false, reason }` olarak
+ * döner.
  */
 export async function seedBootstrapInvite(): Promise<SeedResult> {
-  // Canlı bir sistemde çalıştırılırsa sessizce admin daveti üretmemeli.
-  if ((await db.user.count()) > 0) {
-    return { ok: false, reason: 'Sistemde zaten kullanıcı var; kurulum daveti üretilmedi.' }
-  }
-
   const { token, tokenHash } = createInviteToken()
-  await db.invite.create({
-    data: {
-      tokenHash,
-      globalRole: 'ADMIN',
-      channelId: null,
-      createdById: null,
-      expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 864e5),
-    },
-  })
 
-  const base = process.env.AUTH_URL ?? 'http://localhost:3100'
-  return { ok: true, token, url: `${base}/invite/${token}` }
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        // Canlı bir sistemde çalıştırılırsa sessizce admin daveti üretmemeli.
+        if ((await tx.user.count()) > 0) {
+          return { ok: false, reason: 'Sistemde zaten kullanıcı var; kurulum daveti üretilmedi.' }
+        }
+
+        // İkinci bir çalıştırma (ör. her deploy'da seed), ilkini iptal etmeden
+        // ikinci bir canlı ADMIN daveti basmamalı — aksi halde 7 gün boyunca
+        // birden fazla geçerli admin kimlik bilgisi ortada kalır.
+        const outstanding = await tx.invite.findFirst({
+          where: {
+            createdById: null,
+            usedAt: null,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+        })
+        if (outstanding) {
+          return {
+            ok: false,
+            reason:
+              'Geçerli bir kurulum daveti zaten var. Onu kullan; yenisini üretmeden önce ' +
+              'veritabanında bu daveti iptal etmen (revokedAt) gerekir.',
+          }
+        }
+
+        await tx.invite.create({
+          data: {
+            tokenHash,
+            globalRole: 'ADMIN',
+            channelId: null,
+            createdById: null,
+            expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 864e5),
+          },
+        })
+
+        const base = process.env.AUTH_URL ?? 'http://localhost:3100'
+        return { ok: true, token, url: `${base}/invite/${token}` }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    )
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return { ok: false, reason: 'Aynı anda başka bir kurulum daveti üretiliyordu. Tekrar dene.' }
+    }
+    throw error
+  }
 }
 
 async function main() {

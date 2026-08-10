@@ -31,4 +31,34 @@ describe('seedBootstrapInvite', () => {
     expect(result.ok).toBe(false)
     expect(await db.invite.count()).toBe(0)
   })
+
+  it('art arda çalıştırıldığında ikinci seferde reddeder, tek davet kalır', async () => {
+    const first = await seedBootstrapInvite()
+    expect(first.ok).toBe(true)
+
+    const second = await seedBootstrapInvite()
+    expect(second.ok).toBe(false)
+
+    expect(await db.invite.count()).toBe(1)
+  })
+
+  it('bekleyen davet süresi dolmuş veya iptal edilmişse yeniden üretime izin verir', async () => {
+    const first = await seedBootstrapInvite()
+    expect(first.ok).toBe(true)
+
+    await db.invite.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } })
+
+    const second = await seedBootstrapInvite()
+    expect(second.ok).toBe(true)
+
+    expect(await db.invite.count()).toBe(2)
+  })
+
+  it('eş zamanlı iki çağrı yarış durumunda tek davet üretir', async () => {
+    const [first, second] = await Promise.all([seedBootstrapInvite(), seedBootstrapInvite()])
+
+    const results = [first, second]
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    expect(await db.invite.count()).toBe(1)
+  })
 })
