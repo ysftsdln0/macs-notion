@@ -586,14 +586,17 @@ model Invite {
   channelId   String?
   channelRole ChannelRole @default(MEMBER)
   expiresAt   DateTime
-  createdById String
+  // Null = sistem daveti. Kurulumdaki ilk admin davetinin üretecek bir
+  // kullanıcısı yoktur; zorunlu tutmak seed'i hayalet bir kullanıcı
+  // uydurmaya zorlar ve o kullanıcıya kimse giriş yapamaz.
+  createdById String?
   createdAt   DateTime    @default(now())
   usedByUserId String?
   usedAt      DateTime?
   revokedAt   DateTime?
 
   channel    Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  createdBy  User     @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  createdBy  User?    @relation("InviteCreatedBy", fields: [createdById], references: [id])
   usedBy     User?    @relation("InviteUsedBy", fields: [usedByUserId], references: [id])
 
   @@index([expiresAt])
@@ -3386,6 +3389,142 @@ IMAGE_TAG=latest
 ```bash
 git add -A
 git commit -m "chore: add production compose, caddy, deploy workflow and backups"
+```
+
+---
+
+## Task 15: Kurulum daveti — ilk admin sisteme nasıl girer
+
+Boş bir kurulumda hiç kullanıcı yoktur, dolayısıyla daveti üretecek kimse de yoktur. Önceki seed bunu hayalet bir `admin@example.com` kullanıcısı uydurarak çözmeye çalışıyordu; o satıra kimse giriş yapamaz (Google, var olan bir kullanıcıya OAuth hesabını kendiliğinden bağlamaz, `AccountNotLinked` verir) ve bastığı davet yalnızca `MEMBER` yetkisi taşıyordu. Sonuç: sistemde bir admin görünür ama kimse admin olamaz.
+
+**Files:**
+- Modify: `prisma/schema.prisma` (`Invite.createdById` → nullable), yeni migration
+- Rewrite: `prisma/seed.ts`
+- Test: `tests/integration/seed.test.ts`
+
+**Interfaces:**
+- Consumes: `createInviteToken` (Task 6), `claimInvite`/`applyInvite` (Task 9)
+- Produces: `pnpm db:seed` — boş veritabanında tek bir sistem daveti üretir ve linkini bir kez basar
+
+- [ ] **Step 1: Şemayı gevşet ve migration üret**
+
+`Invite.createdById` `String?` olur, `createdBy` ilişkisi `User?` olur. Migration adı: `system_invite`.
+
+- [ ] **Step 2: Başarısız olacak testi yaz**
+
+```ts
+// tests/integration/seed.test.ts
+import { beforeEach, describe, expect, it } from 'vitest'
+import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
+import { seedBootstrapInvite } from '../../prisma/seed'
+
+beforeEach(resetDb)
+
+describe('seedBootstrapInvite', () => {
+  it('boş veritabanında ADMIN yetkili, sahipsiz bir davet üretir', async () => {
+    const result = await seedBootstrapInvite()
+
+    expect(result.ok).toBe(true)
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.globalRole).toBe('ADMIN')
+    expect(invite.createdById).toBeNull()
+    expect(invite.channelId).toBeNull()
+    expect(await db.user.count()).toBe(0)
+  })
+
+  it('ham token veritabanına yazılmaz', async () => {
+    const result = await seedBootstrapInvite()
+    if (!result.ok) throw new Error('beklenmedik')
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.tokenHash).not.toBe(result.token)
+    expect(result.url).toContain(result.token)
+  })
+
+  it('sistemde kullanıcı varsa çalışmayı reddeder', async () => {
+    await db.user.create({ data: { name: 'Var Olan', email: 'a@x.com' } })
+    const result = await seedBootstrapInvite()
+    expect(result.ok).toBe(false)
+    expect(await db.invite.count()).toBe(0)
+  })
+})
+```
+
+- [ ] **Step 3: Testi çalıştır, başarısız olduğunu gör**
+
+Run: `pnpm vitest run tests/integration/seed.test.ts`
+Expected: FAIL — `seedBootstrapInvite` dışa aktarılmamış
+
+- [ ] **Step 4: Seed'i yeniden yaz**
+
+```ts
+// prisma/seed.ts
+import { PrismaClient } from '@prisma/client'
+import { createInviteToken } from '../src/lib/auth/invite-token'
+
+const db = new PrismaClient()
+
+const INVITE_TTL_DAYS = 7
+
+type SeedResult =
+  | { ok: true; token: string; url: string }
+  | { ok: false; reason: string }
+
+/**
+ * Kurulum daveti: sahipsiz (`createdById: null`), ADMIN yetkili, kanalsız.
+ * Davetli linki açıp Google ile girer; `events.createUser` onu ADMIN yapar
+ * ve ilk kanalı kendisi açar. Böylece ilk kullanıcı da herkesle aynı
+ * yoldan girer — giriş akışında kuruluma özel bir istisna yoktur.
+ */
+export async function seedBootstrapInvite(): Promise<SeedResult> {
+  // Canlı bir sistemde çalıştırılırsa sessizce admin daveti üretmemeli.
+  if ((await db.user.count()) > 0) {
+    return { ok: false, reason: 'Sistemde zaten kullanıcı var; kurulum daveti üretilmedi.' }
+  }
+
+  const { token, tokenHash } = createInviteToken()
+  await db.invite.create({
+    data: {
+      tokenHash,
+      globalRole: 'ADMIN',
+      channelId: null,
+      createdById: null,
+      expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 864e5),
+    },
+  })
+
+  const base = process.env.AUTH_URL ?? 'http://localhost:3100'
+  return { ok: true, token, url: `${base}/invite/${token}` }
+}
+
+async function main() {
+  const result = await seedBootstrapInvite()
+  if (!result.ok) {
+    console.log(result.reason)
+    return
+  }
+  console.log('\nKurulum daveti üretildi. Bu link bir kez gösterilir:\n')
+  console.log(`  ${result.url}\n`)
+  console.log('Linki aç, Google ile gir, profilini tamamla. Yönetici olacaksın.\n')
+}
+
+main().finally(() => db.$disconnect())
+```
+
+- [ ] **Step 5: Testi çalıştır**
+
+Run: `pnpm vitest run tests/integration/seed.test.ts`
+Expected: PASS (3 test)
+
+- [ ] **Step 6: Uçtan uca doğrula**
+
+Boş bir veritabanına karşı `pnpm db:seed` çalıştır, basılan linki tarayıcıda aç, Google ile gir ve `globalRole`'ün `ADMIN` olduğunu veritabanından doğrula. Gerçek Google kimlik bilgisi yoksa bunun yapılamadığını raporda açıkça yaz.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A
+git commit -m "feat: bootstrap the first admin with a system-issued invite"
 ```
 
 ---
