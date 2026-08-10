@@ -5,6 +5,10 @@ import { can } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
 import { MemberActions } from './member-actions'
 
+// Bu route'a KASITLI OLARAK loading.tsx eklenmez: aşağıdaki notFound() bugün
+// member:list herkese açık olduğu için erişilemez olsa da, kod yolu var
+// olduğu sürece bir Suspense sınırı 200'ü akıtıp durumu kilitleyebilir
+// (final review I1/M20 — admin/loading.tsx'in düştüğü aynı tuzak).
 export default async function MembersPage() {
   const actor = await requireActor()
   // Yetki kontrolü veriyi göstermeden önce (bkz. c/[slug]/page.tsx ile aynı desen).

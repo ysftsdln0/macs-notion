@@ -68,3 +68,25 @@ test('tamamen bilinmeyen bir rota da Türkçe not-found sayfasını gösterir', 
   expect(body).toContain('Sayfa bulunamadı')
   expect(body).not.toContain('This page could not be found')
 })
+
+/**
+ * I1 regresyon testi: `/admin` bir admin olmayana 200 dönüyordu çünkü
+ * `admin/loading.tsx`'in Suspense sınırı, sayfa `notFound()` çağırmadan önce
+ * yanıtı 200 olarak akıtıyordu (gövde doğru — Next'in not-found içeriği —
+ * ama durum kodu yanlıştı). Task 13 bu tuzağı `members/` ve `admin/`'e
+ * taşıyarak "düzeltmişti"; asıl kırılan route buydu. Sınıfın bir daha
+ * sessizce dönmemesi için durum kodunu doğrudan pinliyoruz.
+ */
+test("düz üye için /admin 404 döner (gövde değil, durum kodu regresyonu)", async ({ page, context }) => {
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
+  const plain = await db.user.create({
+    data: { name: 'Sade Üye', email: `plain-admin-${stamp}@x.com`, onboardedAt: new Date() },
+  })
+
+  await signInAs(context, plain.id)
+  const response = await page.goto('/admin')
+  expect(response?.status()).toBe(404)
+  const body = (await response?.text()) ?? ''
+  expect(body).not.toContain('Yönetim')
+  expect(body).not.toContain('Yeni davet')
+})

@@ -21,6 +21,10 @@ function isPending(invite: { usedByUserId: string | null; revokedAt: Date | null
   return !invite.usedByUserId && !invite.revokedAt && invite.expiresAt >= new Date()
 }
 
+// Bu route'a KASITLI OLARAK loading.tsx eklenmez: notFound() render sırasında
+// çalışır, bir Suspense sınırı 200'ü akıtıp durumu kilitler (final review
+// I1/M20 — Task 13'ün skeleton'ı tam olarak bu route'a taşımasıyla ortaya
+// çıkan defekt). Aynı kural channels/new/page.tsx'te de geçerli.
 export default async function AdminPage() {
   const actor = await requireActor()
   if (!can(actor, 'invite:list', { kind: 'invite' })) notFound()
