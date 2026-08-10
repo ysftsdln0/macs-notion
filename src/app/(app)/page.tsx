@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { listVisibleChannels } from '@/server/channels-query'
 import { EmptyState } from '@/components/state/empty-state'
+import { describeActivityVerb } from '@/lib/activity-labels'
 
 export default async function HomePage() {
   await requireActor()
@@ -31,7 +32,7 @@ export default async function HomePage() {
           <ul className="space-y-2 text-sm">
             {activities.map((a) => (
               <li key={a.id} className="flex justify-between rounded border px-3 py-2">
-                <span>{a.actor.name} — {a.verb}</span>
+                <span>{a.actor.name} {describeActivityVerb(a.verb)}</span>
                 <time className="text-muted-foreground">
                   {a.createdAt.toLocaleDateString('tr-TR')}
                 </time>
