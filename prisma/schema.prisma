@@ -123,14 +123,14 @@ model Invite {
   channelId   String?
   channelRole ChannelRole @default(MEMBER)
   expiresAt   DateTime
-  createdById String
+  createdById String?
   createdAt   DateTime    @default(now())
   usedByUserId String?
   usedAt      DateTime?
   revokedAt   DateTime?
 
   channel    Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  createdBy  User     @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  createdBy  User?    @relation("InviteCreatedBy", fields: [createdById], references: [id])
   usedBy     User?    @relation("InviteUsedBy", fields: [usedByUserId], references: [id])
 
   @@index([expiresAt])
