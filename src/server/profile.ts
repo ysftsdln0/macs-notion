@@ -1,10 +1,12 @@
 'use server'
 
 import { z } from 'zod'
+import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
 import { recordActivity } from '@/lib/activity'
+import { INVITE_COOKIE } from '@/lib/auth/invite-cookie'
 
 export const completeOnboarding = defineAction({
   input: z.object({
@@ -43,6 +45,14 @@ export const completeOnboarding = defineAction({
       }
       return updated
     })
+
+    // Davet çerezi işini bitirdi: davet, giriş anında Auth.js tarafında
+    // zaten kalıcı olarak tüketildi (bkz. src/lib/auth/config.ts
+    // `events.createUser`). Bu bir Server Action olduğu için `cookies()`
+    // mutasyonu burada yasal — `/onboarding` sayfasının render fazında
+    // yapılamayan temizlik buraya taşındı (bkz. onboarding/page.tsx).
+    const store = await cookies()
+    store.delete(INVITE_COOKIE)
 
     return { id: user.id }
   },

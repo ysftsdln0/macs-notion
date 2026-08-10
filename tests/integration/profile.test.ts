@@ -12,10 +12,25 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
     },
 }))
 
+// `completeOnboarding` artık davet çerezini temizler (C2 düzeltmesi —
+// `/onboarding` render'ında yapılamayan bu iş buraya taşındı). `cookies()`
+// gerçek bir Next.js isteği dışında (bu test dosyası gibi) çağrıldığında
+// istisna fırlatır; burada mock'lanan modül `next/headers`, bir platform
+// ilkeli — test edilen modül (`@/server/profile`) DEĞİL.
+const { cookieStore } = vi.hoisted(() => ({ cookieStore: new Map<string, string>() }))
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (cookieStore.has(name) ? { name, value: cookieStore.get(name) as string } : undefined),
+    set: (name: string, value: string) => { cookieStore.set(name, value) },
+    delete: (name: string) => { cookieStore.delete(name) },
+  }),
+}))
+
 const { completeOnboarding } = await import('@/server/profile')
 
 beforeEach(async () => {
   await resetDb()
+  cookieStore.clear()
 })
 
 describe('completeOnboarding', () => {
@@ -99,5 +114,16 @@ describe('completeOnboarding', () => {
 
     const updated = await db.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(updated.onboardedAt).not.toBeNull()
+  })
+
+  it('davet çerezini temizler (C2: render fazında yapılamayan temizlik buraya taşındı)', async () => {
+    const user = await db.user.create({ data: { name: 'Google Adı', email: 'f@x.com' } })
+    actorRef.current = { id: user.id }
+    cookieStore.set('macs_invite', 'bir-token')
+
+    const r = await completeOnboarding({ name: 'Yusuf Efe', title: '' })
+
+    expect(r.ok).toBe(true)
+    expect(cookieStore.has('macs_invite')).toBe(false)
   })
 })
