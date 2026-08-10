@@ -107,25 +107,47 @@ export const createChannel = defineAction({
   authorize: async ({ actor }) => ({ allowed: can(actor, 'channel:create', { kind: 'channel:new' }) }),
   handler: async ({ actor, input }) => {
     const slug = await uniqueSlug(slugify(input.name))
-    const channel = await db.$transaction(async (tx) => {
-      const created = await tx.channel.create({
-        data: {
-          name: input.name,
-          slug,
-          visibility: input.visibility,
-          description: input.description || null,
-          createdById: actor.id,
-          members: { create: { userId: actor.id, channelRole: 'LEAD' } },
-        },
+    // uniqueSlug'ın kontrolü (findUnique) ve buradaki create AYNI transaction
+    // içinde değil — aralarında bir commit sığabilir (Minor-1). @@unique
+    // kısıtı invariant'ı her koşulda korur, ama kaybeden taraf çıplak P2002
+    // alır; bunu yakalamadan geçirmek defineAction'ın genel catch-all'ında
+    // opak bir INTERNAL'a düşer. Task 8 ruling'i Task 11'in (kanal
+    // oluşturma) çakışan slug için CONFLICT dönmesini şart koşuyordu — bu
+    // o wiring'i tamamlar. Tam bir düzeltme (transaction içinde retry)
+    // burada gerekmiyor: @@unique zaten invariant'ı garanti ediyor, eksik
+    // olan yalnızca doğru hata koduydu.
+    try {
+      const channel = await db.$transaction(async (tx) => {
+        const created = await tx.channel.create({
+          data: {
+            name: input.name,
+            slug,
+            visibility: input.visibility,
+            description: input.description || null,
+            createdById: actor.id,
+            members: { create: { userId: actor.id, channelRole: 'LEAD' } },
+          },
+        })
+        await recordActivity(tx, {
+          actorId: actor.id, verb: 'channel.created',
+          entityType: 'Channel', entityId: created.id, meta: { name: created.name },
+          channelId: created.id,
+        })
+        return created
       })
-      await recordActivity(tx, {
-        actorId: actor.id, verb: 'channel.created',
-        entityType: 'Channel', entityId: created.id, meta: { name: created.name },
-        channelId: created.id,
-      })
-      return created
-    })
-    return { id: channel.id, slug: channel.slug }
+      return { id: channel.id, slug: channel.slug }
+    } catch (error) {
+      const target = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.target : undefined
+      const isSlugConflict =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        Array.isArray(target) &&
+        target.includes('slug')
+      if (isSlugConflict) {
+        throw actionError('CONFLICT', { name: 'Bu isimle aynı anda başka bir kanal oluşturuldu. Tekrar dene.' })
+      }
+      throw error
+    }
   },
 })
 

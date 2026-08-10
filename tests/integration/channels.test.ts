@@ -79,6 +79,36 @@ describe('createChannel', () => {
     const r = await createChannel({ name: 'İkinci Kanal', visibility: 'OPEN' })
     expect(r.ok).toBe(true)
   })
+
+  // Minor-1 regresyon testi: uniqueSlug bir read-then-write — findUnique ile
+  // kontrol, sonra transaction dışında create. İki eş zamanlı istek aynı
+  // temel slug'ı hedeflediğinde ikisi de "boş" okuyabilir; kaybeden Postgres'in
+  // slug @unique kısıtına (P2002) çarpar. Task 8 ruling'i bunun CONFLICT
+  // olarak dönmesini şart koşuyordu; defineAction'ın genel catch-all'ı bunu
+  // ayırt etmeden INTERNAL'a düşürüyordu. Kanal oluşturma artık UI'dan
+  // erişilebilir olduğu için (a1a7bc5) bu canlı bir hata.
+  it('iki eş zamanlı istek aynı slug\'ı üretmeye çalışırsa kaybeden CONFLICT alır, INTERNAL değil', async () => {
+    actorRef.current = { id: admin.id, globalRole: 'ADMIN' }
+
+    const [r1, r2] = await Promise.all([
+      createChannel({ name: 'Yarış Kanalı', visibility: 'OPEN' }),
+      createChannel({ name: 'Yarış Kanalı', visibility: 'OPEN' }),
+    ])
+
+    const results = [r1, r2]
+    const succeeded = results.filter((r) => r.ok)
+    const failed = results.filter((r) => !r.ok)
+
+    // Aynı isim, aynı temel slug: iki eş zamanlı istek de findUnique
+    // kontrolünü diğeri commit etmeden önce çalıştırır, ikisi de "boş" görür
+    // ve ikisi de aynı slug'la create dener — bu ortamda güvenilir biçimde
+    // gerçek bir P2002 üretir (yerel Postgres'e karşı doğrulandı). Kaybeden
+    // CONFLICT almalı, asla INTERNAL değil.
+    expect(succeeded.length).toBe(1)
+    expect(failed.length).toBe(1)
+    const loser = failed[0]
+    if (loser && !loser.ok) expect(loser.error.code).toBe('CONFLICT')
+  })
 })
 
 describe('addChannelMember', () => {
