@@ -1,5 +1,18 @@
+import { existsSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
 import tsconfigPaths from 'vite-tsconfig-paths'
+
+// Next.js (dev/build/start) .env.local'ı kendiliğinden yükler; vitest bunu
+// yapmaz. Bu yüzden `pnpm test` temiz bir checkout'ta DATABASE_URL'siz
+// çöküyordu (final review I5) — geliştirici her seferinde elle export etmek
+// zorundaydı. `process.loadEnvFile` zaten process.env'de TANIMLI olan
+// değerleri EZMEZ (Node belgeleri), bu yüzden CI'ın kendi `env:` bloğuyla
+// geçirdiği değerler burada dokunulmadan kalır — dosya yalnızca eksikleri
+// tamamlar. Dosya yoksa (CI'da .env.local hiç tracked/oluşturulmuş değil)
+// sessizce atlanır.
+if (existsSync('.env.local')) {
+  process.loadEnvFile('.env.local')
+}
 
 export default defineConfig({
   plugins: [tsconfigPaths()],

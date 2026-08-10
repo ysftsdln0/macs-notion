@@ -1,4 +1,16 @@
+import { existsSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
+
+// Next'in build/start için otomatik yüklediği .env.local, Playwright'ın KENDİ
+// test çalıştırıcısı süreci için yüklenmez — spec dosyaları (`tests/e2e/**`,
+// `tests/e2e/helpers/session.ts`) doğrudan `new PrismaClient()` çağırır ve bu
+// süreç DATABASE_URL'i yalnızca ortamdan görür (final review I5'in vitest
+// tarafı için yaptığı düzeltmenin aynısı, burada da gerekli — CI'ın kendi
+// `env:` bloğu zaten tanımlıysa üzerine yazılmaz, bkz. vitest.config.ts'teki
+// aynı yorum).
+if (existsSync('.env.local')) {
+  process.loadEnvFile('.env.local')
+}
 
 export default defineConfig({
   testDir: 'tests/e2e',
