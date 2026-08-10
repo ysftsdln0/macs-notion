@@ -1,10 +1,15 @@
 import Link from 'next/link'
-import type { Actor } from '@/lib/auth/policy'
+import { can, type Actor } from '@/lib/auth/policy'
 import { listVisibleChannels } from '@/server/channels-query'
 
 export async function Sidebar({ actor }: { actor: Actor }) {
   const channels = await listVisibleChannels()
   const mine = new Set(actor.memberships.map((m) => m.channelId))
+  // channel:create policy'siyle birebir aynı karar: admin VEYA herhangi bir
+  // kanalda LEAD olan herkes. Bu link salt görünürlük kolaylığıdır — asıl
+  // yetki kontrolü /channels/new sayfasında ve createChannel action'ında
+  // tekrar (ve gerçek şekilde) yapılır.
+  const canCreateChannel = can(actor, 'channel:create', { kind: 'channel:new' })
 
   return (
     <nav className="flex h-full w-60 shrink-0 flex-col gap-6 border-r bg-muted/30 p-4">
@@ -19,7 +24,14 @@ export async function Sidebar({ actor }: { actor: Actor }) {
       </div>
 
       <div className="space-y-1">
-        <p className="px-2 text-xs font-medium uppercase text-muted-foreground">Kanallarım</p>
+        <div className="flex items-center justify-between px-2">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Kanallarım</p>
+          {canCreateChannel && (
+            <Link href="/channels/new" className="text-xs font-medium text-primary hover:underline">
+              Yeni kanal
+            </Link>
+          )}
+        </div>
         {channels.filter((c) => mine.has(c.id)).map((c) => (
           <Link key={c.id} href={`/c/${c.slug}`} className="block rounded px-2 py-1 text-sm hover:bg-muted">
             {c.icon ?? '#'} {c.name}
