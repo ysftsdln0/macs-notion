@@ -50,3 +50,8 @@ next-env.d.ts
 # agent tooling (never committed)
 .claude/
 .superpowers/
+
+# next dev generates these on every start (generate-agent-files.js);
+# neither is meant to be committed, they'd dirty every contributor's tree
+/AGENTS.md
+/CLAUDE.md
