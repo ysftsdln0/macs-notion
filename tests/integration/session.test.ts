@@ -49,7 +49,7 @@ describe('getActor', () => {
       data: { name: 'Pasif Kullanıcı', isActive: false },
     })
     const session: Session = {
-      user: { id: user.id, name: user.name, email: user.email, image: user.avatarUrl },
+      user: { id: user.id, name: user.name, email: user.email, image: user.image },
       expires: new Date(Date.now() + 86_400_000).toISOString(),
     }
     mockedAuth.mockResolvedValue(session)

@@ -1,0 +1,13 @@
+/*
+  Warnings:
+
+  - You are about to drop the column `avatarUrl` on the `User` table. All the data in the column will be lost.
+
+*/
+-- AlterTable
+ALTER TABLE "Invite" ADD COLUMN     "reservedAt" TIMESTAMP(3);
+
+-- AlterTable
+ALTER TABLE "User" DROP COLUMN "avatarUrl",
+ADD COLUMN     "emailVerified" TIMESTAMP(3),
+ADD COLUMN     "image" TEXT;

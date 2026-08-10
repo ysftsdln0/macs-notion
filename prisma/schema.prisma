@@ -24,11 +24,17 @@ enum ChannelVisibility {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  name        String
-  email       String?  @unique
-  avatarUrl   String?
-  title       String?
+  id            String     @id @default(cuid())
+  name          String
+  email         String?    @unique
+  // Auth.js'in adaptör sözleşmesi bu alanları TAM olarak bu adlarla bekler
+  // (@auth/core createUser çağrısı `{ ...profile, emailVerified: null }`
+  // gönderir, @auth/prisma-adapter bunu doğrudan `prisma.user.create`'e
+  // geçirir). Önceden ayrı bir `avatarUrl` alanı vardı; adaptörün yazdığı
+  // `image` ile aynı anlama gelen iki alan tutmak yerine tek alanda birleşti.
+  emailVerified DateTime?
+  image         String?
+  title         String?
   globalRole  GlobalRole @default(MEMBER)
   isActive    Boolean  @default(true)
   onboardedAt DateTime?
@@ -125,6 +131,12 @@ model Invite {
   expiresAt   DateTime
   createdById String?
   createdAt   DateTime    @default(now())
+  // Kalıcı kullanımdan (usedAt) AYRI bir alan: signIn callback'i daveti
+  // createUser'dan ÖNCE, kısa bir TTL için burada rezerve eder. createUser
+  // (adaptör hatası, ağ kopması, kullanıcının Google ekranında vazgeçmesi
+  // gibi) hiç tamamlanmazsa rezervasyon TTL sonunda kendiliğinden serbest
+  // kalır — davet kalıcı olarak yanmaz. Bkz. invite-service.ts.
+  reservedAt  DateTime?
   usedByUserId String?
   usedAt      DateTime?
   revokedAt   DateTime?
