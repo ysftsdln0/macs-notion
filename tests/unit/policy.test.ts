@@ -163,6 +163,12 @@ describe('can() — davet ve üye yönetimi', () => {
     expect(can(member, 'member:deactivate', { kind: 'member', id: 'other' })).toBe(false)
     expect(can(lead, 'member:deactivate', { kind: 'member', id: 'other' })).toBe(false)
   })
+
+  it('pasif üyeyi yalnızca admin yeniden etkinleştirir', () => {
+    expect(can(admin, 'member:reactivate', { kind: 'member', id: 'other' })).toBe(true)
+    expect(can(member, 'member:reactivate', { kind: 'member', id: 'other' })).toBe(false)
+    expect(can(lead, 'member:reactivate', { kind: 'member', id: 'other' })).toBe(false)
+  })
 })
 
 describe('can() — kaynak türü uyuşmazlığı kapalı hata verir', () => {

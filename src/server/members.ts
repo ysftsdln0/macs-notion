@@ -94,6 +94,31 @@ export const deactivateMember = defineAction({
   },
 })
 
+// deactivateMember'ın tersi. assertMemberExists'i aynen paylaşır (NOT_FOUND
+// aynı şekilde davranır), ama assertActiveAdminSurvivesWithout'u ÇAĞIRMAZ:
+// bu işlem havuzu yalnızca büyütür, aktif admin tavanını asla ihlal edemez
+// (bkz. policy.ts'teki 'member:reactivate' yorumu). Bu yüzden Serializable
+// izolasyona da gerek yok — burada korunacak bir invariant yok, iki eş
+// zamanlı etkinleştirme birbirine karışsa bile sonuç aynı: isActive: true.
+export const reactivateMember = defineAction({
+  input: z.object({ userId: z.string().cuid() }),
+  getActor,
+  authorize: async ({ actor, input }) => ({
+    allowed: can(actor, 'member:reactivate', { kind: 'member', id: input.userId }),
+  }),
+  handler: async ({ actor, input }) => {
+    await db.$transaction(async (tx) => {
+      await assertMemberExists(tx, input.userId)
+      await tx.user.update({ where: { id: input.userId }, data: { isActive: true } })
+      await recordActivity(tx, {
+        actorId: actor.id, verb: 'member.reactivated',
+        entityType: 'User', entityId: input.userId,
+      })
+    })
+    return { id: input.userId }
+  },
+})
+
 export const updateMemberRole = defineAction({
   input: z.object({ userId: z.string().cuid(), globalRole: z.enum(['ADMIN', 'MEMBER']) }),
   getActor,

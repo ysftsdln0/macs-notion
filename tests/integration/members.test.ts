@@ -17,7 +17,7 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   },
 }))
 
-const { deactivateMember, updateMemberRole } = await import('@/server/members')
+const { deactivateMember, reactivateMember, updateMemberRole } = await import('@/server/members')
 
 let admin: { id: string }
 let target: { id: string }
@@ -110,6 +110,57 @@ describe('deactivateMember', () => {
     const remainingActiveAdmins = await db.user.count({ where: { globalRole: 'ADMIN', isActive: true } })
     expect(remainingActiveAdmins).toBeGreaterThanOrEqual(1)
     expect(remainingActiveAdmins).toBe(1)
+  })
+})
+
+describe('reactivateMember', () => {
+  it('pasif üyeyi yeniden etkinleştirir', async () => {
+    await db.user.update({ where: { id: target.id }, data: { isActive: false } })
+    actorRef.current = admin.id
+
+    const r = await reactivateMember({ userId: target.id })
+
+    expect(r.ok).toBe(true)
+    const updated = await db.user.findUniqueOrThrow({ where: { id: target.id } })
+    expect(updated.isActive).toBe(true)
+  })
+
+  it('düz üye başkasını yeniden etkinleştiremez', async () => {
+    const bystander = await db.user.create({ data: { name: 'Yoldan Geçen' } })
+    await db.user.update({ where: { id: target.id }, data: { isActive: false } })
+    actorRef.current = bystander.id
+
+    const r = await reactivateMember({ userId: target.id })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
+    const unchanged = await db.user.findUniqueOrThrow({ where: { id: target.id } })
+    expect(unchanged.isActive).toBe(false)
+  })
+
+  it('var olmayan kullanıcı için NOT_FOUND döner', async () => {
+    actorRef.current = admin.id
+    const r = await reactivateMember({ userId: 'clxxxxxxxxxxxxxxxxxxxxxxx' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('NOT_FOUND')
+  })
+
+  it('zaten aktif bir üyeyi etkinleştirmek de başarılı olur (idempotent)', async () => {
+    actorRef.current = admin.id
+    const r = await reactivateMember({ userId: target.id })
+    expect(r.ok).toBe(true)
+    const unchanged = await db.user.findUniqueOrThrow({ where: { id: target.id } })
+    expect(unchanged.isActive).toBe(true)
+  })
+
+  it('etkinleştirme Activity kaydı bırakır', async () => {
+    await db.user.update({ where: { id: target.id }, data: { isActive: false } })
+    actorRef.current = admin.id
+    await reactivateMember({ userId: target.id })
+    const activity = await db.activity.findFirstOrThrow()
+    expect(activity.verb).toBe('member.reactivated')
+    expect(activity.actorId).toBe(admin.id)
+    expect(activity.entityId).toBe(target.id)
   })
 })
 

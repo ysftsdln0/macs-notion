@@ -24,6 +24,7 @@ export type Action =
   | 'member:list'
   | 'member:updateRole'
   | 'member:deactivate'
+  | 'member:reactivate'
 
 export type Resource =
   | { kind: 'channel:new' }
@@ -110,6 +111,12 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
     case 'member:deactivate':
       // Admin kendini pasife alamaz: sistemde admin kalmama riski.
       return resource.kind === 'member' && isAdmin(actor) && resource.id !== actor.id
+
+    case 'member:reactivate':
+      // Havuzu yalnızca büyütür, admin tavanı riske girmez — kendi kendini
+      // etkinleştirme senaryosu zaten pasif aktörün hiçbir yetkisi olmaması
+      // (bkz. dosya başındaki isActive kapısı) yüzünden erişilemez.
+      return resource.kind === 'member' && isAdmin(actor)
 
     default: {
       const exhaustive: never = action

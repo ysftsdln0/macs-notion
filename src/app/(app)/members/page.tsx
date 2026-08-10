@@ -10,9 +10,17 @@ export default async function MembersPage() {
   // Yetki kontrolü veriyi göstermeden önce (bkz. c/[slug]/page.tsx ile aynı desen).
   if (!can(actor, 'member:list', { kind: 'member', id: actor.id })) notFound()
 
+  const isAdmin = actor.globalRole === 'ADMIN'
+
   const members = await db.user.findMany({
-    where: { isActive: true },
-    orderBy: { name: 'asc' },
+    // Pasif üyeler daha önce bu sorgudan tamamen dışlanıyordu — bu, uygulama
+    // içinde onları görecek ve geri etkinleştirecek tek kişi olan admin için
+    // de geçerliydi, yani deaktivasyon geri dönüşü olmayan bir işlemdi (tek
+    // kurtarma yolu VPS'te elle psql çalıştırmaktı). Admin artık pasif
+    // üyeleri de görür ve etkinleştirebilir; düz üye hâlâ yalnızca aktif
+    // üyeleri görür (pasif hesapların varlığı iş arkadaşlarına sızmaz).
+    where: isAdmin ? {} : { isActive: true },
+    orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     // Açık select: email ve diğer kişisel alanlar hiç çekilmez, sayfada
     // gösterilmeyen veri sorgu sonucunda da yer almaz.
     select: {
@@ -20,6 +28,7 @@ export default async function MembersPage() {
       name: true,
       title: true,
       globalRole: true,
+      isActive: true,
       memberships: {
         select: { channel: { select: { id: true, name: true, visibility: true } } },
       },
@@ -30,7 +39,6 @@ export default async function MembersPage() {
     return <EmptyState title="Üye yok" description="Davet gönderildikçe burada görünecekler." />
   }
 
-  const isAdmin = actor.globalRole === 'ADMIN'
   const viewerChannelIds = new Set(actor.memberships.map((m) => m.channelId))
 
   // Kanal görünürlüğü channel:read ile aynı kural izler: OPEN kanal
@@ -57,19 +65,27 @@ export default async function MembersPage() {
             <th>Ünvan</th>
             <th>Rol</th>
             <th>Kanallar</th>
+            {isAdmin && <th>Durum</th>}
             {isAdmin && <th className="text-right">İşlemler</th>}
           </tr>
         </thead>
         <tbody>
           {members.map((m) => (
-            <tr key={m.id} className="border-t">
+            <tr key={m.id} className={`border-t ${m.isActive ? '' : 'text-muted-foreground'}`}>
               <td className="py-2">{m.name}</td>
               <td>{m.title ?? '—'}</td>
               <td>{m.globalRole === 'ADMIN' ? 'Yönetici' : 'Üye'}</td>
               <td>{visibleChannelNames(m.memberships)}</td>
+              {isAdmin && <td>{m.isActive ? 'Aktif' : 'Pasif'}</td>}
               {isAdmin && (
                 <td className="py-2 text-right">
-                  <MemberActions userId={m.id} globalRole={m.globalRole} isSelf={m.id === actor.id} />
+                  <MemberActions
+                    userId={m.id}
+                    name={m.name}
+                    globalRole={m.globalRole}
+                    isActive={m.isActive}
+                    isSelf={m.id === actor.id}
+                  />
                 </td>
               )}
             </tr>
