@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
  * Entegrasyon testleri arasında paylaşılan Postgres örneğini temizler.
  * Silme sırası FK ilişkilerine göre çocuktan ebeveyne doğrudur:
  * Activity/DocState/DocumentShare/Comment/Notification → Document →
- * ChannelMember → Channel → User.
+ * Assignee → Task → Event → ChannelMember → Channel → User.
  */
 export async function resetDb(): Promise<void> {
   await db.activity.deleteMany()
@@ -15,6 +15,9 @@ export async function resetDb(): Promise<void> {
   await db.document.deleteMany()
   await db.comment.deleteMany()
   await db.notification.deleteMany()
+  await db.assignee.deleteMany()
+  await db.task.deleteMany()
+  await db.event.deleteMany()
   await db.channelMember.deleteMany()
   await db.channel.deleteMany()
   await db.user.deleteMany()

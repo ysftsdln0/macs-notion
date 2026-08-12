@@ -39,6 +39,27 @@ enum SharePermission {
   EDIT
 }
 
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EventStatus {
+  PLANNED
+  CONFIRMED
+  DONE
+  CANCELLED
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String
@@ -68,6 +89,9 @@ model User {
   comments       Comment[]
   notifications  Notification[]
   notificationActor Notification[] @relation("NotificationActor")
+  assignments    Assignee[]
+  createdTasks   Task[]          @relation("TaskCreatedBy")
+  createdEvents  Event[]         @relation("EventCreatedBy")
 
   @@index([isActive])
 }
@@ -126,6 +150,8 @@ model Channel {
   members   ChannelMember[]
   invites   Invite[]
   documents Document[]
+  tasks     Task[]
+  events    Event[]
 
   @@index([archivedAt])
 }
@@ -215,6 +241,70 @@ model DocumentShare {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, userId])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  notes       String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  // Lexorank sıra anahtarı (src/lib/rank.ts). Sözlük sırasına göre
+  // sıralanır; iki kart arasına her zaman yeni bir anahtar sığar.
+  rank        String       @default("h")
+  channelId   String
+  eventId     String?
+  createdById String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  archivedAt  DateTime?
+
+  channel   Channel    @relation(fields: [channelId], references: [id])
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy User       @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  assignees Assignee[]
+
+  @@index([status, rank])
+  @@index([channelId])
+  @@index([eventId])
+  @@index([archivedAt])
+}
+
+model Assignee {
+  id     String @id @default(cuid())
+  taskId String
+  userId String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  status      EventStatus @default(PLANNED)
+  channelId   String
+  coverUrl    String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  archivedAt  DateTime?
+
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  createdBy User     @relation("EventCreatedBy", fields: [createdById], references: [id])
+  tasks     Task[]
+
+  @@index([startsAt])
+  @@index([channelId])
+  @@index([archivedAt])
 }
 
 // Polimorfik: entityType + entityId (Document | Task | Event | Sponsor | BudgetEntry).
