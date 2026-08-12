@@ -20,6 +20,10 @@
 # testing
 /coverage
 
+# yerel dosya yüklemeleri (UPLOAD_DIR varsayılanı); production'da bir
+# Docker volume'unda durur, depoya asla girmez
+/uploads
+
 # playwright
 /test-results/
 /playwright-report/

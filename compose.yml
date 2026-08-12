@@ -44,6 +44,10 @@ services:
       AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID}
       AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET}
       AUTH_TRUST_HOST: 'true'
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      # scripts/backup.sh bu volume'u adıyla yedekler (macs_uploads).
+      - uploads:/data/uploads
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -63,5 +67,6 @@ services:
 
 volumes:
   pgdata:
+  uploads:
   caddy_data:
   caddy_config:
