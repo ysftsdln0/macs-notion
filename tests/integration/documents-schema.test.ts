@@ -55,4 +55,27 @@ describe('doküman şeması', () => {
     const n = await db.notification.findFirstOrThrow()
     expect(n.readAt).toBeNull()
   })
+
+  /**
+   * Regresyon testi. `Document.searchVector` şemada DEĞİL, migration'a elle
+   * yazılmış generated bir kolondur; bu yüzden Prisma onu her `migrate dev`
+   * çıktısında fazlalık sayıp düşürmeyi önerir — bir kez gerçekten de öyle
+   * oldu (tasks_events migration'ı kolonu ve GIN index'ini DROP ediyordu) ve
+   * doküman araması sessizce çalışmaz hale geldi. Bu test o ifadenin
+   * migration'da unutulmasını CI'da yakalar.
+   */
+  it('Document.searchVector generated kolonu ve GIN index\'i yerinde', async () => {
+    const columns = await db.$queryRaw<{ is_generated: string }[]>`
+      SELECT is_generated FROM information_schema.columns
+      WHERE table_name = 'Document' AND column_name = 'searchVector'
+    `
+    expect(columns).toHaveLength(1)
+    expect(columns[0]?.is_generated).toBe('ALWAYS')
+
+    const indexes = await db.$queryRaw<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes
+      WHERE tablename = 'Document' AND indexname = 'Document_searchVector_idx'
+    `
+    expect(indexes).toHaveLength(1)
+  })
 })

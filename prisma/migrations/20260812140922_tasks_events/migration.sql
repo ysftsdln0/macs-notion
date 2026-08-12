@@ -1,8 +1,22 @@
 /*
-  Warnings:
+  DİKKAT — bu dosya `prisma migrate dev` çıktısından ELLE düzeltildi.
 
-  - You are about to drop the column `searchVector` on the `Document` table. All the data in the column will be lost.
+  Prisma, şemada görünmeyen her kolonu fazlalık sayar. `Document.searchVector`
+  generated bir tsvector kolonudur ve BİLEREK şemada değil, migration'a elle
+  yazılmış raw SQL ile gelir (20260812122616). Bu yüzden Prisma bu migration'ı
+  üretirken kolonu ve GIN index'ini DÜŞÜREN iki ifade ekledi:
 
+      DROP INDEX "Document_searchVector_idx";
+      ALTER TABLE "Document" DROP COLUMN "searchVector";
+
+  İkisi de silindi. Bırakılsalardı doküman araması sessizce çalışmaz olurdu:
+  `migrate deploy` çalışan her ortamda kolon yok olur, `searchDocuments`
+  "column does not exist" ile patlardı (yerelde tam olarak bu oldu).
+
+  Bundan sonraki HER `prisma migrate dev` aynı iki ifadeyi yeniden önerecek;
+  her seferinde silinmeleri gerekir. Kolonun varlığı
+  tests/integration/documents-schema.test.ts tarafından doğrulanır —
+  unutulursa test kırılır.
 */
 -- CreateEnum
 CREATE TYPE "TaskStatus" AS ENUM ('BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE');
@@ -12,12 +26,6 @@ CREATE TYPE "TaskPriority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
 
 -- CreateEnum
 CREATE TYPE "EventStatus" AS ENUM ('PLANNED', 'CONFIRMED', 'DONE', 'CANCELLED');
-
--- DropIndex
-DROP INDEX "Document_searchVector_idx";
-
--- AlterTable
-ALTER TABLE "Document" DROP COLUMN "searchVector";
 
 -- CreateTable
 CREATE TABLE "Task" (
