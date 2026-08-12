@@ -60,6 +60,31 @@ enum EventStatus {
   CANCELLED
 }
 
+enum SponsorStatus {
+  PROSPECT
+  CONTACTED
+  NEGOTIATING
+  SIGNED
+  DECLINED
+}
+
+enum Currency {
+  TRY
+  USD
+  EUR
+}
+
+enum BudgetKind {
+  INCOME
+  EXPENSE
+}
+
+enum BudgetStatus {
+  PLANNED
+  COMMITTED
+  PAID
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String
@@ -92,6 +117,10 @@ model User {
   assignments    Assignee[]
   createdTasks   Task[]          @relation("TaskCreatedBy")
   createdEvents  Event[]         @relation("EventCreatedBy")
+  ownedSponsors   Sponsor[]      @relation("SponsorOwner")
+  createdSponsors Sponsor[]      @relation("SponsorCreatedBy")
+  createdBudgetEntries BudgetEntry[] @relation("BudgetCreatedBy")
+  uploads         Attachment[]
 
   @@index([isActive])
 }
@@ -152,6 +181,8 @@ model Channel {
   documents Document[]
   tasks     Task[]
   events    Event[]
+  sponsors  Sponsor[]
+  budgetEntries BudgetEntry[]
 
   @@index([archivedAt])
 }
@@ -301,10 +332,91 @@ model Event {
   channel   Channel  @relation(fields: [channelId], references: [id])
   createdBy User     @relation("EventCreatedBy", fields: [createdById], references: [id])
   tasks     Task[]
+  sponsors  Sponsor[]
+  budgetEntries BudgetEntry[]
 
   @@index([startsAt])
   @@index([channelId])
   @@index([archivedAt])
+}
+
+model Sponsor {
+  id           String        @id @default(cuid())
+  name         String
+  logoUrl      String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  status       SponsorStatus @default(PROSPECT)
+  amount       Decimal?      @db.Decimal(12, 2)
+  currency     Currency      @default(TRY)
+  eventId      String?
+  ownerUserId  String?
+  channelId    String
+  notes        String?
+  createdById  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  archivedAt   DateTime?
+
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  owner     User?    @relation("SponsorOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy User     @relation("SponsorCreatedBy", fields: [createdById], references: [id])
+  budgetEntries BudgetEntry[]
+
+  @@index([status])
+  @@index([channelId])
+  @@index([eventId])
+  @@index([archivedAt])
+}
+
+model BudgetEntry {
+  id          String        @id @default(cuid())
+  kind        BudgetKind
+  title       String
+  amount      Decimal       @db.Decimal(12, 2)
+  currency    Currency      @default(TRY)
+  category    String // 'kongre', 'ulasim', 'sponsor-geliri' vb.
+  date        DateTime      @default(now())
+  status      BudgetStatus  @default(PLANNED)
+  eventId     String?
+  sponsorId   String?
+  channelId   String
+  receiptAttachmentId String?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  archivedAt  DateTime?
+
+  channel  Channel  @relation(fields: [channelId], references: [id])
+  event    Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  sponsor  Sponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
+  createdBy User     @relation("BudgetCreatedBy", fields: [createdById], references: [id])
+
+  @@index([kind, status])
+  @@index([eventId])
+  @@index([channelId])
+  @@index([archivedAt])
+}
+
+// Yükleme dizinindeki dosyanın kaydı. `storagePath` asla istemciye
+// dönmez — dosya yalnızca `id` üzerinden, yetki kontrollü route'tan
+// servis edilir (src/app/api/files/[id]/route.ts).
+model Attachment {
+  id           String   @id @default(cuid())
+  fileName     String
+  mime         String
+  size         Int
+  storagePath  String   @unique
+  entityType   String
+  entityId     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  uploader User @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
 }
 
 // Polimorfik: entityType + entityId (Document | Task | Event | Sponsor | BudgetEntry).

@@ -31,6 +31,8 @@ export type Action =
   | 'document:write'
   | 'document:share'
   | 'document:delete'
+  | 'budget:read'
+  | 'budget:write'
 
 export type Resource =
   | { kind: 'channel:new' }
@@ -56,6 +58,12 @@ export type Resource =
       sharedEdit?: boolean
     }
   | { kind: 'document:new'; channelId: string; channelVisibility: Visibility }
+  | {
+      kind: 'budget'
+      channelId: string
+      channelVisibility: Visibility
+      channelArchivedAt: Date | null
+    }
 
 function membership(actor: Actor, channelId: string) {
   return actor.memberships.find((m) => m.channelId === channelId)
@@ -177,6 +185,19 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
       if (isAdmin(actor)) return true
       if (resource.ownerId === actor.id) return true
       return membership(actor, resource.channelId)?.channelRole === 'LEAD'
+
+    // Para kalemleri içerikten daha kapalı: kanal üyeliği yetmez.
+    case 'budget:read':
+      if (resource.kind !== 'budget') return false
+      if (isAdmin(actor)) return true
+      return membership(actor, resource.channelId)?.channelRole === 'LEAD'
+
+    case 'budget:write':
+      // Yazma yalnızca admin'de. LEAD bütçeyi görür, değiştiremez —
+      // kulübün parasal kaydını tek elde tutmak bilinçli bir karar.
+      if (resource.kind !== 'budget') return false
+      if (resource.channelArchivedAt) return false
+      return isAdmin(actor)
 
     default: {
       const exhaustive: never = action

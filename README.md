@@ -74,6 +74,34 @@ Docker (yalnızca yerel Postgres için).
    Konsola bir kerelik bir davet linki basılır; onu açıp Google ile giriş
    yaparsan kurucu admin olursun.
 
+### Migration üretirken dikkat: tsvector kolonları
+
+`Document`, `Task`, `Event` ve `Sponsor` tablolarındaki `searchVector`
+kolonları **generated tsvector**'lardır ve `schema.prisma`'da tanımlı
+değildir (Prisma generated column'ları ifade edemez) — yalnızca migration
+dosyalarına elle yazılmış raw SQL ile yaşarlar.
+
+Bunun sonucu: `pnpm db:migrate` her yeni migration'da bu kolonları
+"fazlalık" sayıp düşüren ifadeler üretir:
+
+```sql
+DROP INDEX "Document_searchVector_idx";
+ALTER TABLE "Document" DROP COLUMN "searchVector";
+```
+
+**Üretilen migration dosyasından bu ifadeleri her seferinde elle silmek
+gerekir.** Bırakılırlarsa arama sessizce çalışmaz olur (`searchDocuments`
+"column does not exist" ile patlar). `tests/integration/documents-schema.test.ts`,
+`tests/integration/tasks-schema.test.ts` ve
+`tests/integration/finance-schema.test.ts` bu kolonların varlığını
+doğrular; unutulursa test kırılır.
+
+Ayrıca **uygulanmış bir migration dosyasını sonradan düzenlemek** Prisma'nın
+checksum kontrolünü bozar ve `migrate dev` veritabanını sıfırlamak ister.
+Bu yüzden yeni tsvector kolonları ayrı bir migration dosyasına yazılır
+(ör. `*_tasks_events_search_vectors`, `*_sponsor_search_vector`) — mevcut
+bir dosyanın sonuna eklenmez.
+
 ### Testler
 
 ```bash
