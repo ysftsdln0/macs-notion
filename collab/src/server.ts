@@ -24,8 +24,18 @@ const server = Server.configure({
     return { actorId: auth.actorId }
   },
 
-  async onLoadDocument({ documentName }) {
-    return loadDocumentState(documentName)
+  /**
+   * Hocuspocus bu hook'tan YALNIZCA bir Y.Doc kabul eder: dönen değerin
+   * `constructor.name`'i 'Doc'/'Document' değilse sessizce yok sayar
+   * (hocuspocus-server, loadDocument). Ham `Uint8Array` döndürmek bu yüzden
+   * kaydedilmiş dokümanın hiç yüklenmemesine yol açıyordu — yazma çalışıyor,
+   * okuma her seferinde boş doküman veriyordu. Güncellemeyi doğrudan
+   * sunucunun verdiği dokümana uyguluyoruz.
+   */
+  async onLoadDocument({ documentName, document }) {
+    const state = await loadDocumentState(documentName)
+    if (state) Y.applyUpdate(document, state)
+    return document
   },
 
   async onStoreDocument({ documentName, document }) {

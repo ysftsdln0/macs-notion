@@ -20,6 +20,10 @@ services:
     environment:
       DATABASE_URL: postgresql://macs:macs@db:5432/macs
       PORT: '1234'
+      # .env.local'daki AUTH_SECRET ile aynı olmalı — web bu sırla imzalar.
+      # `docker compose --env-file .env.local -f compose.dev.yml up` ya da
+      # shell'de export edilmiş bir değer yeterli.
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET gerekli - .env.local ile aynı deger olmali}
     ports: ['1234:1234']
     depends_on:
       db: { condition: service_healthy }

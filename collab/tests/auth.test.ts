@@ -1,16 +1,16 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { randomBytes } from 'node:crypto'
 import { PrismaClient } from '../generated/prisma/client.js'
+import { signCollabToken } from '../../src/lib/auth/collab-token.ts'
 import { authorizeDocument } from '../src/authorize-document.ts'
 
 const db = new PrismaClient()
 
-async function makeSession(userId: string): Promise<string> {
-  const token = randomBytes(32).toString('hex')
-  await db.session.create({
-    data: { sessionToken: token, userId, expires: new Date(Date.now() + 864e5) },
-  })
-  return token
+// resolveActor sırrı process.env.AUTH_SECRET'tan okur; testte de aynı yerden
+// gelmeli, yoksa imza doğrulaması hep başarısız olur.
+process.env.AUTH_SECRET ??= 'collab-test-secret'
+
+function makeToken(userId: string): string {
+  return signCollabToken(userId, process.env.AUTH_SECRET as string)
 }
 
 let owner: { id: string }
@@ -36,8 +36,8 @@ beforeEach(async () => {
 })
 
 describe('authorizeDocument', () => {
-  it('geçerli oturum + OPEN kanal üyeliği: yazma izni verilir', async () => {
-    const token = await makeSession(owner.id)
+  it('geçerli collab token + OPEN kanal üyeliği: yazma izni verilir', async () => {
+    const token = makeToken(owner.id)
     const doc = await db.document.create({
       data: { title: 'Not', channelId, createdById: owner.id },
     })
@@ -58,7 +58,7 @@ describe('authorizeDocument', () => {
   })
 
   it('PRIVATE dokümana üye olmayan (paylaşım yok) reddedilir', async () => {
-    const token = await makeSession(outsider.id)
+    const token = makeToken(outsider.id)
     const doc = await db.document.create({
       data: { title: 'Gizli', channelId, visibility: 'PRIVATE', createdById: owner.id },
     })
@@ -67,7 +67,7 @@ describe('authorizeDocument', () => {
   })
 
   it('PRIVATE dokümana EDIT paylaşımı yazma izni verir', async () => {
-    const token = await makeSession(outsider.id)
+    const token = makeToken(outsider.id)
     const doc = await db.document.create({
       data: { title: 'Gizli', channelId, visibility: 'PRIVATE', createdById: owner.id },
     })
@@ -78,8 +78,19 @@ describe('authorizeDocument', () => {
     expect(r.ok).toBe(true)
   })
 
+  it('pasife alınan üye, token süresi dolmasa da reddedilir', async () => {
+    const token = makeToken(owner.id)
+    const doc = await db.document.create({
+      data: { title: 'Not', channelId, createdById: owner.id },
+    })
+    await db.user.update({ where: { id: owner.id }, data: { isActive: false } })
+
+    const r = await authorizeDocument(token, doc.id)
+    expect(r).toEqual({ ok: false, reason: 'session' })
+  })
+
   it('arşivlenmiş doküman reddedilir', async () => {
-    const token = await makeSession(owner.id)
+    const token = makeToken(owner.id)
     const doc = await db.document.create({
       data: { title: 'Silik', channelId, createdById: owner.id, archivedAt: new Date() },
     })

@@ -27,6 +27,9 @@ services:
     environment:
       DATABASE_URL: postgresql://macs:${POSTGRES_PASSWORD}@db:5432/macs
       PORT: '1234'
+      # web ile AYNI sır olmalı: web collab token'ını imzalar, collab onu
+      # doğrular. Farklı olursa her websocket bağlantısı reddedilir.
+      AUTH_SECRET: ${AUTH_SECRET}
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }

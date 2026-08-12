@@ -15,7 +15,7 @@ if (existsSync('.env.local')) {
 export default defineConfig({
   testDir: 'tests/e2e',
   use: { baseURL: 'http://localhost:3100' },
-  webServer: {
+  webServer: [{
     // Production `node server.js` (standalone çıktı, bkz. Dockerfile'ın
     // `run` hedefi) ile aynı giriş noktasını kullanır. `next.config.ts`
     // `output: "standalone"` ayarlıyken salt `next start` çalışır ama
@@ -30,5 +30,14 @@ export default defineConfig({
     url: 'http://localhost:3100',
     reuseExistingServer: !process.env.CI,
     timeout: 300_000,
-  },
+  }, {
+    // Canlı doküman düzenleme için Hocuspocus sunucusu. Web ile AYNI
+    // AUTH_SECRET'ı görmeli — sayfa collab token'ını o sırla imzalar,
+    // burası doğrular. Hocuspocus HTTP kökünde 200 döndüğü için Playwright
+    // hazır olma kontrolünü normal bir url ile yapabiliyor.
+    command: 'pnpm --filter macs-collab start',
+    url: 'http://127.0.0.1:1234',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
+  }],
 })
