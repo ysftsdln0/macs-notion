@@ -41,6 +41,14 @@ const activityVerbLabels: Record<string, string> = {
   'event.updated': 'bir etkinliği güncelledi',
   'event.archived': 'bir etkinliği arşivledi',
   'event.restored': 'bir etkinliği geri yükledi',
+  'sponsor.created': 'bir sponsor ekledi',
+  'sponsor.updated': 'bir sponsoru güncelledi',
+  'sponsor.moved': 'bir sponsorun durumunu değiştirdi',
+  'sponsor.archived': 'bir sponsoru arşivledi',
+  'sponsor.restored': 'bir sponsoru geri yükledi',
+  'budget.created': 'bir bütçe kalemi ekledi',
+  'budget.updated': 'bir bütçe kalemini güncelledi',
+  'budget.archived': 'bir bütçe kalemini arşivledi',
 }
 
 export function describeActivityVerb(verb: string): string {

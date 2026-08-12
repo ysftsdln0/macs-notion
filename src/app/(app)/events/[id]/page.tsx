@@ -4,6 +4,9 @@ import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { loadEventContext } from '@/server/events-query'
 import { listTasks } from '@/server/tasks-query'
+import { listComments } from '@/server/comments-query'
+import { listUsersWithAccess } from '@/server/entity-access'
+import { CommentThread } from '@/components/comments/comment-thread'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/state/empty-state'
 import { describeTaskPriority, describeTaskStatus } from '@/lib/task-labels'
@@ -20,7 +23,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const canWrite = can(actor, 'content:write', context.resource)
   const canDelete = can(actor, 'content:delete', context.resource)
-  const tasks = await listTasks(actor, { eventId: id })
+  const [tasks, comments, mentionCandidates] = await Promise.all([
+    listTasks(actor, { eventId: id }),
+    listComments(actor, 'Event', id),
+    listUsersWithAccess('Event', id),
+  ])
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -66,6 +73,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           Görev panosuna git →
         </Link>
       </section>
+
+      <CommentThread
+        entityType="Event"
+        entityId={context.event.id}
+        comments={comments}
+        currentUserId={actor.id}
+        isAdmin={actor.globalRole === 'ADMIN'}
+        mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
+      />
     </div>
   )
 }

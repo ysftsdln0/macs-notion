@@ -7,6 +7,7 @@ import { addComment, deleteComment, editComment } from '@/server/comments'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/state/empty-state'
 import type { CommentView } from '@/server/comments-query'
+import type { CommentableEntityType } from '@/server/entity-access'
 
 export type MentionCandidate = { id: string; name: string }
 
@@ -17,7 +18,7 @@ export type MentionCandidate = { id: string; name: string }
 export function CommentThread({
   entityType, entityId, comments, currentUserId, isAdmin, mentionCandidates,
 }: {
-  entityType: 'Document'
+  entityType: CommentableEntityType
   entityId: string
   comments: CommentView[]
   currentUserId: string
