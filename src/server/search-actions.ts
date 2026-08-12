@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { searchDocuments, type DocumentSearchHit } from '@/server/search'
+import { globalSearch, searchDocuments, type DocumentSearchHit, type SearchHit } from '@/server/search'
 
 /**
  * Arayüzden çağrılabilen tek arama uç noktası. Aktörü `getActor` ile kendisi
@@ -19,4 +19,12 @@ export const searchDocumentsAction = defineAction({
   authorize: async () => ({ allowed: true as const }),
   handler: async ({ actor, input }): Promise<DocumentSearchHit[]> =>
     searchDocuments(input.query, actor),
+})
+
+/** ⌘K paletinin uç noktası; aynı gerekçelerle aktörü kendisi çözer. */
+export const globalSearchAction = defineAction({
+  input: z.object({ query: z.string().max(200) }),
+  getActor,
+  authorize: async () => ({ allowed: true as const }),
+  handler: async ({ actor, input }): Promise<SearchHit[]> => globalSearch(input.query, actor),
 })

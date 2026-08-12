@@ -19,12 +19,13 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   },
 }))
 
-const { searchDocuments } = await import('@/server/search')
+const { globalSearch, searchDocuments } = await import('@/server/search')
 
 let admin: { id: string }
 let member: { id: string }
 let outsider: { id: string }
 let channelId: string
+let privateChannelId: string
 
 async function actorOf(id: string) {
   const user = await db.user.findUniqueOrThrow({ where: { id }, include: { memberships: true } })
@@ -46,6 +47,13 @@ beforeEach(async () => {
     },
   })
   channelId = channel.id
+  const privateChannel = await db.channel.create({
+    data: {
+      name: 'Gizli', slug: 'gizli', visibility: 'PRIVATE', createdById: member.id,
+      members: { create: { userId: member.id, channelRole: 'LEAD' } },
+    },
+  })
+  privateChannelId = privateChannel.id
 })
 
 describe('searchDocuments', () => {
@@ -116,5 +124,112 @@ describe('searchDocuments', () => {
     })
     const hits = await searchDocuments("bütçe'nin", await actorOf(member.id))
     expect(hits).toHaveLength(1)
+  })
+})
+
+describe('globalSearch', () => {
+  async function seedAllTypes(targetChannelId: string, word: string) {
+    // Doküman görünürlüğü BİLEREK CHANNEL: varsayılan PUBLIC, kanal PRIVATE
+    // olsa bile kulüp geneline açıktır (policy kararı), o yüzden kanal
+    // sızıntısını sınayan test için uygun değil.
+    await db.document.create({
+      data: {
+        title: `${word} dokümanı`, channelId: targetChannelId,
+        createdById: member.id, visibility: 'CHANNEL',
+      },
+    })
+    await db.task.create({
+      data: { title: `${word} görevi`, channelId: targetChannelId, createdById: member.id },
+    })
+    await db.event.create({
+      data: {
+        title: `${word} etkinliği`, channelId: targetChannelId, createdById: member.id,
+        startsAt: new Date('2026-12-01T09:00:00Z'),
+      },
+    })
+    await db.sponsor.create({
+      data: { name: `${word} sponsoru`, channelId: targetChannelId, createdById: member.id },
+    })
+  }
+
+  it('dört türü de bulur ve her türden sonuç döndürür', async () => {
+    await seedAllTypes(channelId, 'kongre')
+    const hits = await globalSearch('kongre', await actorOf(member.id))
+
+    expect(new Set(hits.map((h) => h.type))).toEqual(
+      new Set(['document', 'task', 'event', 'sponsor']),
+    )
+    expect(hits.every((h) => h.subtitle === 'Sponsorluk')).toBe(true)
+  })
+
+  it('görev/etkinlik/sponsor gövde metninden de bulunur', async () => {
+    await db.task.create({
+      data: {
+        title: 'Adsız görev', notes: 'Otobüs kiralama teklifi alınacak',
+        channelId, createdById: member.id,
+      },
+    })
+    const hits = await globalSearch('otobüs', await actorOf(member.id))
+    expect(hits.map((h) => h.type)).toEqual(['task'])
+  })
+
+  it('PRIVATE kanaldaki içerik üye olmayanın sonuçlarında çıkmaz', async () => {
+    await seedAllTypes(privateChannelId, 'gizlikelime')
+
+    expect(await globalSearch('gizlikelime', await actorOf(outsider.id))).toEqual([])
+    expect(await globalSearch('gizlikelime', await actorOf(member.id))).toHaveLength(4)
+    expect(await globalSearch('gizlikelime', await actorOf(admin.id))).toHaveLength(4)
+  })
+
+  it('arşivlenmiş kayıtlar sonuçlara girmez', async () => {
+    await db.task.create({
+      data: {
+        title: 'Eski afiş görevi', channelId, createdById: member.id, archivedAt: new Date(),
+      },
+    })
+    await db.sponsor.create({
+      data: {
+        name: 'Eski afiş sponsoru', channelId, createdById: member.id, archivedAt: new Date(),
+      },
+    })
+    expect(await globalSearch('afiş', await actorOf(member.id))).toEqual([])
+  })
+
+  it('arşivlenmiş kanalın içeriği sonuçlara girmez', async () => {
+    const archived = await db.channel.create({
+      data: {
+        name: 'Kapanmış', slug: 'kapanmis', createdById: member.id,
+        archivedAt: new Date(),
+        members: { create: { userId: member.id, channelRole: 'LEAD' } },
+      },
+    })
+    await db.event.create({
+      data: {
+        title: 'Kapanmış kanal etkinliği', channelId: archived.id, createdById: member.id,
+        startsAt: new Date('2026-12-01T09:00:00Z'),
+      },
+    })
+    expect(await globalSearch('kapanmış', await actorOf(member.id))).toEqual([])
+  })
+
+  it('boş sorgu ve sonuçsuz sorgu boş liste döner', async () => {
+    await seedAllTypes(channelId, 'kongre')
+    expect(await globalSearch('   ', await actorOf(member.id))).toEqual([])
+    expect(await globalSearch('kesinlikleyokboylebirkelime', await actorOf(member.id))).toEqual([])
+  })
+
+  it('limit aşıldığında her türden sonuç kalır — tek tablo listeyi doldurmaz', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await db.document.create({
+        data: { title: `Ortak kelime dokümanı ${i}`, channelId, createdById: member.id },
+      })
+    }
+    await db.sponsor.create({
+      data: { name: 'Ortak kelime sponsoru', channelId, createdById: member.id },
+    })
+
+    const hits = await globalSearch('ortak kelime', await actorOf(member.id), 5)
+    expect(hits).toHaveLength(5)
+    expect(hits.map((h) => h.type)).toContain('sponsor')
   })
 })
