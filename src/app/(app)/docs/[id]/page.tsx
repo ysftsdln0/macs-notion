@@ -9,7 +9,7 @@ import { signCollabToken } from '@/lib/auth/collab-token'
 import { COLLAB_URL } from '@/lib/constants'
 import { CommentThread } from '@/components/comments/comment-thread'
 import { DocHeader } from './doc-header'
-import { Editor } from './editor'
+import { EditorLoader } from './editor-loader'
 import { ShareDialog } from './share-dialog'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -85,7 +85,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           ) : null
         }
       />
-      <Editor
+      <EditorLoader
         documentId={context.doc.id}
         canWrite={canWrite}
         collabUrl={COLLAB_URL}

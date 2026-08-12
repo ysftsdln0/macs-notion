@@ -1,17 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
+import { resetDb } from '../helpers/reset-db'
 
-beforeEach(async () => {
-  await db.docState.deleteMany()
-  await db.documentShare.deleteMany()
-  await db.document.deleteMany()
-  await db.notification.deleteMany()
-  await db.comment.deleteMany()
-  await db.activity.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
-})
+// Kendi elle yazılmış temizlik sırası yerine paylaşılan resetDb: yeni bir
+// tablo eklendiğinde (Task/Event) buradaki sıra eksik kalıyor ve
+// channel.deleteMany() FK ihlaline çarpıyordu.
+beforeEach(resetDb)
 
 describe('doküman şeması', () => {
   it('iç içe sayfa ve paylaşım kısıtı çalışır', async () => {

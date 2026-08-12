@@ -29,6 +29,18 @@ const activityVerbLabels: Record<string, string> = {
   'document.shared': 'bir dokümanı paylaştı',
   'document.unshared': 'bir doküman paylaşımını kaldırdı',
   'comment.added': 'bir yorum yazdı',
+  'task.created': 'bir görev oluşturdu',
+  'task.updated': 'bir görevi güncelledi',
+  'task.moved': 'bir görevi taşıdı',
+  'task.assigned': 'bir görevin atamalarını değiştirdi',
+  'task.linkedToEvent': 'bir görevi etkinliğe bağladı',
+  'task.unlinkedFromEvent': 'bir görevin etkinlik bağlantısını kaldırdı',
+  'task.archived': 'bir görevi arşivledi',
+  'task.restored': 'bir görevi geri yükledi',
+  'event.created': 'bir etkinlik oluşturdu',
+  'event.updated': 'bir etkinliği güncelledi',
+  'event.archived': 'bir etkinliği arşivledi',
+  'event.restored': 'bir etkinliği geri yükledi',
 }
 
 export function describeActivityVerb(verb: string): string {
