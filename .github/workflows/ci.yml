@@ -44,8 +44,10 @@ jobs:
       # that gate, so this is the explicit, required fix on pnpm 10.
       - run: pnpm exec prisma generate
       - run: pnpm typecheck
+      - run: pnpm --filter macs-collab typecheck
       - run: pnpm lint
       - run: pnpm prisma migrate deploy
       - run: pnpm test
+      - run: pnpm --filter macs-collab test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e

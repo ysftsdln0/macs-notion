@@ -53,6 +53,9 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+      yjs:
+        specifier: ^13.6.32
+        version: 13.6.32
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -102,8 +105,14 @@ importers:
 
   collab:
     dependencies:
+      '@hocuspocus/extension-database':
+        specifier: 2.15.3
+        version: 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      '@hocuspocus/extension-logger':
+        specifier: 2.15.3
+        version: 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       '@hocuspocus/server':
-        specifier: ^2.0.0
+        specifier: 2.15.3
         version: 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       '@prisma/client':
         specifier: ^6.19.3
@@ -113,7 +122,7 @@ importers:
         version: 13.6.32
     devDependencies:
       '@hocuspocus/provider':
-        specifier: ^2.0.0
+        specifier: 2.15.3
         version: 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       '@types/node':
         specifier: ^20
@@ -552,6 +561,14 @@ packages:
 
   '@hocuspocus/common@2.15.3':
     resolution: {integrity: sha512-Rzh1HF0a2o/tf90A3w2XNdXd9Ym3aQzMDfD3lAUONCX9B9QOdqdyiORrj6M25QEaJrEIbXFy8LtAFcL0wRdWzA==}
+
+  '@hocuspocus/extension-database@2.15.3':
+    resolution: {integrity: sha512-+PVlPwfdVyOase68WEBb105ZwglhCLVeGpyNa3uwnmH+Ers7OKGLma2SDMKn3Vcb5oHzTzEGx7jNt+32KTEKXA==}
+    peerDependencies:
+      yjs: ^13.6.8
+
+  '@hocuspocus/extension-logger@2.15.3':
+    resolution: {integrity: sha512-NufsjXldlVX1c2B98Hyg8Vq9GblPmnIvw9QGdsBK6SNEgWzDwfVrjljrigMAVGuQ4pbBVz8TaY5DcsmOCi5jqA==}
 
   '@hocuspocus/provider@2.15.3':
     resolution: {integrity: sha512-oadN05m+KL4ylNKVo5YspNG4MXkT2Y+FUFzrgigpQeTjQibkPUwCNmUnkUxMgrGRgxb+O0lJCfirFIJMxedctA==}
@@ -4184,6 +4201,24 @@ snapshots:
   '@hocuspocus/common@2.15.3':
     dependencies:
       lib0: 0.2.117
+
+  '@hocuspocus/extension-database@2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)':
+    dependencies:
+      '@hocuspocus/server': 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+      yjs: 13.6.32
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - y-protocols
+
+  '@hocuspocus/extension-logger@2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)':
+    dependencies:
+      '@hocuspocus/server': 2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - y-protocols
+      - yjs
 
   '@hocuspocus/provider@2.15.3(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)':
     dependencies:

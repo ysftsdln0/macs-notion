@@ -1,6 +1,7 @@
 export type GlobalRole = 'ADMIN' | 'MEMBER'
 export type ChannelRole = 'LEAD' | 'MEMBER'
 export type Visibility = 'OPEN' | 'PRIVATE'
+export type DocumentVisibility = 'PUBLIC' | 'CHANNEL' | 'PRIVATE'
 
 export type Actor = {
   id: string
@@ -25,6 +26,11 @@ export type Action =
   | 'member:updateRole'
   | 'member:deactivate'
   | 'member:reactivate'
+  | 'document:create'
+  | 'document:read'
+  | 'document:write'
+  | 'document:share'
+  | 'document:delete'
 
 export type Resource =
   | { kind: 'channel:new' }
@@ -39,6 +45,17 @@ export type Resource =
     }
   | { kind: 'invite' }
   | { kind: 'member'; id: string }
+  | {
+      kind: 'document'
+      channelId: string
+      channelVisibility: Visibility
+      channelArchivedAt: Date | null
+      documentVisibility: DocumentVisibility
+      ownerId?: string | null
+      shared?: boolean
+      sharedEdit?: boolean
+    }
+  | { kind: 'document:new'; channelId: string; channelVisibility: Visibility }
 
 function membership(actor: Actor, channelId: string) {
   return actor.memberships.find((m) => m.channelId === channelId)
@@ -117,6 +134,49 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
       // etkinleştirme senaryosu zaten pasif aktörün hiçbir yetkisi olmaması
       // (bkz. dosya başındaki isActive kapısı) yüzünden erişilemez.
       return resource.kind === 'member' && isAdmin(actor)
+
+    case 'document:create':
+      if (resource.kind !== 'document:new') return false
+      if (resource.channelVisibility === 'PRIVATE' && !isAdmin(actor)) {
+        return !!membership(actor, resource.channelId)
+      }
+      return isAdmin(actor) || !!membership(actor, resource.channelId)
+
+    case 'document:read': {
+      if (resource.kind !== 'document') return false
+      if (resource.channelArchivedAt) return false
+      if (isAdmin(actor)) return true
+      if (resource.documentVisibility === 'PUBLIC') return true
+      if (resource.documentVisibility === 'CHANNEL') {
+        return !!membership(actor, resource.channelId)
+      }
+      // PRIVATE: sahip + paylaşılan + admin
+      return resource.ownerId === actor.id || !!resource.shared
+    }
+
+    case 'document:write': {
+      if (resource.kind !== 'document') return false
+      if (resource.channelArchivedAt) return false
+      if (isAdmin(actor)) return true
+      if (resource.ownerId === actor.id) return true
+      if (!!resource.sharedEdit) return true
+      // CHANNEL/OPEN üyeler kanal içinde yazar; PRIVATE dokümanda kanal üyeliği
+      // yazma vermez (paylaşılan değilse görünmüyor zaten).
+      if (resource.documentVisibility === 'PRIVATE') return false
+      return !!membership(actor, resource.channelId)
+    }
+
+    case 'document:share':
+      if (resource.kind !== 'document') return false
+      if (isAdmin(actor)) return true
+      if (resource.ownerId === actor.id) return true
+      return membership(actor, resource.channelId)?.channelRole === 'LEAD'
+
+    case 'document:delete':
+      if (resource.kind !== 'document') return false
+      if (isAdmin(actor)) return true
+      if (resource.ownerId === actor.id) return true
+      return membership(actor, resource.channelId)?.channelRole === 'LEAD'
 
     default: {
       const exhaustive: never = action

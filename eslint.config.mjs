@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Collab workspace: ayrı paket, kendi kural setini kullanmaz
+    // (generated prisma client'ı da kapsar).
+    "collab/**",
   ]),
 ]);
 

@@ -29,6 +29,13 @@ jobs:
           push: true
           target: migrate
           tags: ghcr.io/${{ github.repository_owner }}/macs-migrate:${{ github.sha }},ghcr.io/${{ github.repository_owner }}/macs-migrate:latest
+      - name: collab imajı
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          file: collab/Dockerfile
+          context: .
+          tags: ghcr.io/${{ github.repository_owner }}/macs-collab:${{ github.sha }},ghcr.io/${{ github.repository_owner }}/macs-collab:latest
       - name: VPS'te güncelle
         uses: appleboy/ssh-action@v1
         with:
@@ -37,6 +44,6 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/macs
-            IMAGE_TAG=${{ github.sha }} docker compose pull web migrate
+            IMAGE_TAG=${{ github.sha }} docker compose pull web migrate collab
             IMAGE_TAG=${{ github.sha }} docker compose up -d
             docker image prune -f
