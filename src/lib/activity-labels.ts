@@ -21,6 +21,14 @@ const activityVerbLabels: Record<string, string> = {
   'invite.created': 'bir davet oluşturdu',
   'invite.revoked': 'bir daveti iptal etti',
   'invite.accepted': 'bir daveti kabul etti',
+  'document.created': 'bir doküman oluşturdu',
+  'document.updated': 'bir dokümanı güncelledi',
+  'document.archived': 'bir dokümanı çöp kutusuna taşıdı',
+  'document.restored': 'bir dokümanı geri yükledi',
+  'document.permanentlyDeleted': 'bir dokümanı kalıcı olarak sildi',
+  'document.shared': 'bir dokümanı paylaştı',
+  'document.unshared': 'bir doküman paylaşımını kaldırdı',
+  'comment.added': 'bir yorum yazdı',
 }
 
 export function describeActivityVerb(verb: string): string {

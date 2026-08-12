@@ -3,8 +3,11 @@ import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { loadDocumentContext } from '@/server/documents-query'
+import { listComments } from '@/server/comments-query'
+import { listUsersWithAccess } from '@/server/entity-access'
 import { signCollabToken } from '@/lib/auth/collab-token'
 import { COLLAB_URL } from '@/lib/constants'
+import { CommentThread } from '@/components/comments/comment-thread'
 import { DocHeader } from './doc-header'
 import { Editor } from './editor'
 import { ShareDialog } from './share-dialog'
@@ -23,9 +26,11 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const canShare = can(actor, 'document:share', context.resource)
   const canDelete = can(actor, 'document:delete', context.resource)
 
-  const [state, user, shares] = await Promise.all([
+  const [state, user, comments, mentionCandidates, shares] = await Promise.all([
     db.docState.findUnique({ where: { documentId: id } }),
     db.user.findUniqueOrThrow({ where: { id: actor.id }, select: { id: true, name: true } }),
+    listComments(actor, 'Document', id),
+    listUsersWithAccess('Document', id),
     canShare
       ? db.documentShare.findMany({
           where: { documentId: id },
@@ -87,6 +92,14 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         collabToken={collabToken}
         initialYdoc={initialYdoc}
         currentUser={user}
+      />
+      <CommentThread
+        entityType="Document"
+        entityId={context.doc.id}
+        comments={comments}
+        currentUserId={actor.id}
+        isAdmin={actor.globalRole === 'ADMIN'}
+        mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
       />
     </div>
   )
