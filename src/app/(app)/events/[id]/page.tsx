@@ -6,6 +6,9 @@ import { loadEventContext } from '@/server/events-query'
 import { listTasks } from '@/server/tasks-query'
 import { listComments } from '@/server/comments-query'
 import { listUsersWithAccess } from '@/server/entity-access'
+import { canReadBudgetOfChannel, listBudgetEntries, summarizeBudget } from '@/server/budget-query'
+import { BudgetSummaryCards } from '@/components/budget/summary-cards'
+import { BudgetEntryTable } from '@/components/budget/entry-table'
 import { CommentThread } from '@/components/comments/comment-thread'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/state/empty-state'
@@ -23,11 +26,29 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const canWrite = can(actor, 'content:write', context.resource)
   const canDelete = can(actor, 'content:delete', context.resource)
-  const [tasks, comments, mentionCandidates] = await Promise.all([
+  const [tasks, comments, mentionCandidates, canReadBudget] = await Promise.all([
     listTasks(actor, { eventId: id }),
     listComments(actor, 'Event', id),
     listUsersWithAccess('Event', id),
+    canReadBudgetOfChannel(actor, context.event.channel.id),
   ])
+
+  // Bütçe içerikten daha kapalı: etkinliği görebilmek kalemleri görmeye
+  // yetmez, bölüm yalnızca budget:read olanlara render edilir.
+  const [budgetEntries, budgetSummary] = canReadBudget
+    ? await Promise.all([
+        listBudgetEntries(actor, { eventId: id }),
+        summarizeBudget(actor, { eventId: id }),
+      ])
+    : [[], []]
+  const budgetWritableChannelIds = can(actor, 'budget:write', {
+    kind: 'budget',
+    channelId: context.event.channel.id,
+    channelVisibility: context.resource.channelVisibility,
+    channelArchivedAt: context.resource.channelArchivedAt,
+  })
+    ? [context.event.channel.id]
+    : []
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -73,6 +94,30 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           Görev panosuna git →
         </Link>
       </section>
+
+      {canReadBudget && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase text-muted-foreground">Bütçe</h2>
+          {budgetEntries.length === 0 ? (
+            <EmptyState
+              title="Bu etkinliğe bağlı bütçe kalemi yok"
+              description="Bütçe sayfasından yeni bir kalem eklerken bu etkinliği seçebilirsin."
+            />
+          ) : (
+            <>
+              <BudgetSummaryCards summary={budgetSummary} />
+              <BudgetEntryTable
+                entries={budgetEntries}
+                writableChannelIds={budgetWritableChannelIds}
+                showChannel={false}
+              />
+            </>
+          )}
+          <Link href={`/budget?eventId=${context.event.id}`} className="text-sm text-primary hover:underline">
+            Bütçe sayfasına git →
+          </Link>
+        </section>
+      )}
 
       <CommentThread
         entityType="Event"
