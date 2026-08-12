@@ -2,6 +2,13 @@
 
 # dependencies
 /node_modules
+/collab/node_modules
+
+# prisma generate çıktısı: her `pnpm prisma generate` bu dosyaları yeniden
+# yazıyor ve commit'li oldukları için her geliştiricinin ağacını kirletiyordu.
+# collab imajı build sırasında kendi `prisma generate`'ini çalıştırır
+# (collab/Dockerfile), depoda tutulmasına gerek yok.
+/collab/generated/
 /.pnp
 .pnp.*
 .yarn/*

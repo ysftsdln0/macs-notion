@@ -18,7 +18,13 @@ export type ChannelRow = {
   archivedAt: Date | null
 }
 
-export function docResource(doc: DocumentRow, channel: ChannelRow, sharedEdit: boolean): Resource {
+export type SharePermission = 'VIEW' | 'EDIT' | null
+
+export function docResource(
+  doc: DocumentRow,
+  channel: ChannelRow,
+  share: SharePermission,
+): Resource {
   return {
     kind: 'document',
     channelId: doc.channelId,
@@ -26,8 +32,12 @@ export function docResource(doc: DocumentRow, channel: ChannelRow, sharedEdit: b
     channelArchivedAt: channel.archivedAt,
     documentVisibility: doc.visibility as 'PUBLIC' | 'CHANNEL' | 'PRIVATE',
     ownerId: doc.createdById,
-    shared: true,
-    sharedEdit,
+    // `shared` gerçek paylaşım satırından gelir. Sabit `true` yazmak
+    // document:write için sonucu değiştirmez (o dal yalnızca sharedEdit'e
+    // bakar) ama aynı resource document:read'e verildiğinde PRIVATE bir
+    // dokümanı herkese açardı.
+    shared: share !== null,
+    sharedEdit: share === 'EDIT',
   }
 }
 
@@ -39,9 +49,9 @@ export function canEditDocument(
   actor: Actor,
   doc: DocumentRow,
   channel: ChannelRow,
-  sharedEdit: boolean,
+  share: SharePermission,
 ): boolean {
-  return can(actor, 'document:write', docResource(doc, channel, sharedEdit))
+  return can(actor, 'document:write', docResource(doc, channel, share))
 }
 
 export type Authorization =
@@ -66,7 +76,7 @@ export async function authorizeDocument(
     where: { documentId_userId: { documentId: doc.id, userId: actor.id } },
   })
 
-  if (!canEditDocument(actor, doc, channel, share?.permission === 'EDIT')) {
+  if (!canEditDocument(actor, doc, channel, share?.permission ?? null)) {
     return { ok: false, reason: 'permission' }
   }
   return { ok: true, actorId: actor.id }
