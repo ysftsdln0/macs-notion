@@ -6,6 +6,7 @@ import { getDocumentTree, type DocumentNode } from '@/server/documents-query'
 import { EmptyState } from '@/components/state/empty-state'
 import { describeDocumentVisibility } from '@/lib/document-labels'
 import { CreateDocumentDialog } from './create-document-dialog'
+import { DocumentSearchBox } from './search-box'
 
 function DocumentRow({ node, depth }: { node: DocumentNode; depth: number }) {
   return (
@@ -66,6 +67,8 @@ export default async function DocsPage() {
         <h1 className="text-2xl font-semibold">Dokümanlar</h1>
         <CreateDocumentDialog channels={writableChannels} parents={flatParents} />
       </header>
+
+      <DocumentSearchBox />
 
       {tree.length === 0 ? (
         <EmptyState

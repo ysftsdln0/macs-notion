@@ -20,7 +20,10 @@ export async function Sidebar({ actor }: { actor: Actor }) {
         <Link href="/docs" className="block rounded px-2 py-1 hover:bg-muted">Dokümanlar</Link>
         <Link href="/members" className="block rounded px-2 py-1 hover:bg-muted">Üyeler</Link>
         {actor.globalRole === 'ADMIN' && (
-          <Link href="/admin" className="block rounded px-2 py-1 hover:bg-muted">Yönetim</Link>
+          <>
+            <Link href="/admin" className="block rounded px-2 py-1 hover:bg-muted">Yönetim</Link>
+            <Link href="/trash" className="block rounded px-2 py-1 hover:bg-muted">Çöp kutusu</Link>
+          </>
         )}
       </div>
 

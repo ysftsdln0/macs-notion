@@ -112,9 +112,13 @@ export type VisibleDocument = {
  * yaklaşımı burada bilerek kullanılmaz: yaklaşık bir liste ya PRIVATE başlık
  * sızdırır ya da yetkili kullanıcıdan dokümanı gizler.
  */
-export async function listVisibleDocuments(actor?: Actor): Promise<VisibleDocument[]> {
+export async function listVisibleDocuments(
+  actor?: Actor,
+  ids?: string[],
+): Promise<VisibleDocument[]> {
   const resolved = actor ?? (await getActor())
   if (!resolved) return []
+  if (ids && ids.length === 0) return []
 
   const select = {
     id: true,
@@ -126,7 +130,11 @@ export async function listVisibleDocuments(actor?: Actor): Promise<VisibleDocume
     channel: { select: { id: true, name: true, slug: true } },
   } as const
 
-  const base = { archivedAt: null, channel: { archivedAt: null } }
+  const base = {
+    archivedAt: null,
+    channel: { archivedAt: null },
+    ...(ids ? { id: { in: ids } } : {}),
+  }
 
   if (resolved.globalRole === 'ADMIN') {
     return db.document.findMany({ where: base, select, orderBy: { updatedAt: 'desc' } })
