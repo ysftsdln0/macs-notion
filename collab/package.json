@@ -1,0 +1,25 @@
+{
+  "name": "macs-collab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.0.0",
+    "@prisma/client": "^6.19.3",
+    "yjs": "^13.6.0"
+  },
+  "devDependencies": {
+    "@hocuspocus/provider": "^2.0.0",
+    "@types/node": "^20",
+    "prisma": "^6.19.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
+  }
+}

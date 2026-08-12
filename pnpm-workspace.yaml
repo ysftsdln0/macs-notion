@@ -1,3 +1,6 @@
+packages:
+  - collab
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
