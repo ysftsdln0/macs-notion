@@ -1,9 +1,13 @@
 import Link from 'next/link'
 import { can, type Actor } from '@/lib/auth/policy'
 import { listVisibleChannels } from '@/server/channels-query'
+import { countUnreadNotifications } from '@/server/notifications-query'
 
 export async function Sidebar({ actor }: { actor: Actor }) {
-  const channels = await listVisibleChannels()
+  const [channels, unreadCount] = await Promise.all([
+    listVisibleChannels(),
+    countUnreadNotifications(actor),
+  ])
   const mine = new Set(actor.memberships.map((m) => m.channelId))
   // channel:create policy'siyle birebir aynı karar: admin VEYA herhangi bir
   // kanalda LEAD olan herkes. Bu link salt görünürlük kolaylığıdır — asıl
@@ -17,6 +21,17 @@ export async function Sidebar({ actor }: { actor: Actor }) {
 
       <div className="space-y-1 text-sm">
         <Link href="/" className="block rounded px-2 py-1 hover:bg-muted">Ana sayfa</Link>
+        <Link
+          href="/inbox"
+          className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted"
+        >
+          <span>Gelen kutusu</span>
+          {unreadCount > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
+              {unreadCount}
+            </span>
+          )}
+        </Link>
         <Link href="/docs" className="block rounded px-2 py-1 hover:bg-muted">Dokümanlar</Link>
         <Link href="/tasks" className="block rounded px-2 py-1 hover:bg-muted">Görevler</Link>
         <Link href="/events" className="block rounded px-2 py-1 hover:bg-muted">Etkinlikler</Link>
