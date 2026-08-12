@@ -97,3 +97,33 @@ test('VIEW paylaşımı salt-okur editör gösterir', async ({ page, context }) 
   await expect(page.getByText('Bu dokümanı yalnızca görüntüleyebilirsin.')).toBeVisible()
   await expect(page.getByLabel('Doküman başlığı')).toBeDisabled()
 })
+
+test('iki sekme aynı dokümanda canlı eşitlenir', async ({ context }) => {
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
+  const author = await db.user.create({
+    data: { name: 'Eşzamanlı Yazar', email: `sync-${stamp}@x.com`, onboardedAt: new Date() },
+  })
+  const channel = await makeChannel(stamp, author.id)
+  const doc = await db.document.create({
+    data: { title: `Eşzamanlı ${stamp}`, channelId: channel.id, createdById: author.id },
+  })
+
+  await signInAs(context, author.id)
+  const first = await context.newPage()
+  const second = await context.newPage()
+
+  for (const page of [first, second]) {
+    await page.goto(`/docs/${doc.id}`)
+    await expect(page.getByText('Canlı düzenlemeye bağlanılıyor…')).toHaveCount(0, {
+      timeout: 20_000,
+    })
+  }
+
+  await first.locator('.bn-editor').click()
+  await first.keyboard.type(`Ortak satır ${stamp}`)
+
+  // İkinci sekme yenilenmeden, yalnızca websocket üzerinden görmeli.
+  await expect(second.locator('.bn-editor')).toContainText(`Ortak satır ${stamp}`, {
+    timeout: 20_000,
+  })
+})

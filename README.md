@@ -2,9 +2,12 @@
 
 MACS, bir öğrenci kulübünün iç koordinasyonu için kullandığı, kendi sunucusunda
 (self-hosted) çalışan bir çalışma alanı uygulamasıdır. Üyeler davet linkiyle
-Google üzerinden giriş yapar, kanallara katılır ve (sonraki sürümlerde)
-doküman/görev/etkinlik gibi içerikleri bu kanallar altında yönetir. Bu ilk
-sürüm kimlik, kanal ve yetki temelini içerir.
+Google üzerinden giriş yapar, kanallara katılır ve içerikleri bu kanallar
+altında yönetir: canlı ortak düzenlenen dokümanlar (Yjs + Hocuspocus),
+görev panosu, etkinlik takvimi, sponsor takibi, bütçe kalemleri ve fiş
+ekleri, yorumlar ve bildirimler. Arama `⌘K` komut paletinden dört içerik
+türünde birden yapılır ve her zaman kullanıcının okuma yetkisiyle
+sınırlıdır.
 
 **Teknoloji:** Next.js 16 (App Router), React 19, TypeScript (strict),
 Tailwind CSS + shadcn/ui, Prisma 6 + Postgres 16, Auth.js v5 (yalnızca Google
@@ -45,12 +48,17 @@ Docker (yalnızca yerel Postgres için).
    5433 ve 3100'e işaret eder). `.env.local` gitignore'dadır, asla commit
    edilmez.
 
-3. Yerel Postgres'i ayağa kaldır (yalnızca veritabanı — web `pnpm dev` ile
-   host'ta çalışır):
+3. Yerel Postgres'i ve collab (Hocuspocus) sunucusunu ayağa kaldır — web
+   `pnpm dev` ile host'ta çalışır:
 
    ```bash
-   docker compose -f compose.dev.yml up -d
+   docker compose --env-file .env.local -f compose.dev.yml up -d
    ```
+
+   `--env-file` gerekli: collab servisi web ile AYNI `AUTH_SECRET`'ı
+   görmezse doküman websocket'i her bağlantıyı reddeder. Collab'ı
+   container yerine host'ta çalıştırmak istersen `pnpm --filter macs-collab
+   dev` de aynı işi görür.
 
 4. Şemayı uygula:
 
