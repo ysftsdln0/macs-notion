@@ -5,7 +5,7 @@ import type { Actor } from '@/lib/auth/policy'
 
 type UserWithMemberships = {
   id: string
-  globalRole: 'ADMIN' | 'MEMBER'
+  globalRole: 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
   isActive: boolean
   memberships: { channelId: string; channelRole: 'LEAD' | 'MEMBER' }[]
 }

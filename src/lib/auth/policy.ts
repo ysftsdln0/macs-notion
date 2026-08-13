@@ -1,4 +1,4 @@
-export type GlobalRole = 'ADMIN' | 'MEMBER'
+export type GlobalRole = 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
 export type ChannelRole = 'LEAD' | 'MEMBER'
 export type Visibility = 'OPEN' | 'PRIVATE'
 export type DocumentVisibility = 'PUBLIC' | 'CHANNEL' | 'PRIVATE'

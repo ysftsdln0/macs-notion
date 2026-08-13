@@ -99,13 +99,18 @@ export default async function MembersPage() {
                 {isAdmin && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
                 {isAdmin && (
                   <td className="px-3 py-2 text-right">
-                    <MemberActions
-                      userId={m.id}
-                      name={m.name}
-                      globalRole={m.globalRole}
-                      isActive={m.isActive}
-                      isSelf={m.id === actor.id}
-                    />
+                    {/* SUPERADMIN bu panelden düşürülemez/pasifleştirilemez —
+                        rol düzenleyici ADMIN/MEMBER için tasarlandı, üçüncü
+                        kademe rol yönetim panelinin işi (henüz yok). */}
+                    {m.globalRole !== 'SUPERADMIN' && (
+                      <MemberActions
+                        userId={m.id}
+                        name={m.name}
+                        globalRole={m.globalRole}
+                        isActive={m.isActive}
+                        isSelf={m.id === actor.id}
+                      />
+                    )}
                   </td>
                 )}
               </tr>

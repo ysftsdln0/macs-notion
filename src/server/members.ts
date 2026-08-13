@@ -8,7 +8,7 @@ import { getActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 
-type MemberRow = { id: string; globalRole: 'ADMIN' | 'MEMBER'; isActive: boolean }
+type MemberRow = { id: string; globalRole: 'SUPERADMIN' | 'ADMIN' | 'MEMBER'; isActive: boolean }
 
 async function assertMemberExists(tx: Prisma.TransactionClient, userId: string): Promise<MemberRow> {
   const target = await tx.user.findUnique({ where: { id: userId } })
