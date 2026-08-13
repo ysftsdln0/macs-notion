@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { MemberActions } from './member-actions'
 
 // Bu route'a KASITLI OLARAK loading.tsx eklenmez: aşağıdaki notFound() bugün
@@ -40,7 +41,12 @@ export default async function MembersPage() {
   })
 
   if (members.length === 0) {
-    return <EmptyState title="Üye yok" description="Davet gönderildikçe burada görünecekler." />
+    return (
+      <PageContainer width="wide">
+        <PageHeader title="Üyeler" />
+        <EmptyState title="Üye yok" description="Davet gönderildikçe burada görünecekler." />
+      </PageContainer>
+    )
   }
 
   const viewerChannelIds = new Set(actor.memberships.map((m) => m.channelId))
@@ -55,47 +61,58 @@ export default async function MembersPage() {
       memberships
         .filter(({ channel }) => channel.visibility === 'OPEN' || isAdmin || viewerChannelIds.has(channel.id))
         .map(({ channel }) => channel.name)
-        .join(', ') || '—'
+        .join(', ') || '-'
     )
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-2xl font-semibold">Üyeler</h1>
-      <table className="w-full text-sm">
-        <thead className="text-left text-muted-foreground">
-          <tr>
-            <th className="py-2">Ad</th>
-            <th>Ünvan</th>
-            <th>Rol</th>
-            <th>Kanallar</th>
-            {isAdmin && <th>Durum</th>}
-            {isAdmin && <th className="text-right">İşlemler</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.id} className={`border-t ${m.isActive ? '' : 'text-muted-foreground'}`}>
-              <td className="py-2">{m.name}</td>
-              <td>{m.title ?? '—'}</td>
-              <td>{m.globalRole === 'ADMIN' ? 'Yönetici' : 'Üye'}</td>
-              <td>{visibleChannelNames(m.memberships)}</td>
-              {isAdmin && <td>{m.isActive ? 'Aktif' : 'Pasif'}</td>}
-              {isAdmin && (
-                <td className="py-2 text-right">
-                  <MemberActions
-                    userId={m.id}
-                    name={m.name}
-                    globalRole={m.globalRole}
-                    isActive={m.isActive}
-                    isSelf={m.id === actor.id}
-                  />
-                </td>
-              )}
+    <PageContainer width="wide">
+      <PageHeader title="Üyeler" />
+      {/* Altı sütuna kadar çıkabiliyor; dar ekranda tabloyu kırpmak yerine
+          kendi içinde kaydırılır, sayfa gövdesi yatayda kaymaz. */}
+      <div className="overflow-x-auto rounded-lg border bg-card">
+        <table className="w-full min-w-2xl text-sm">
+          <thead className="text-left text-xs tracking-wide text-muted-foreground uppercase">
+            <tr className="border-b">
+              <th className="px-3 py-2">Ad</th>
+              <th className="px-3 py-2">Ünvan</th>
+              <th className="px-3 py-2">Rol</th>
+              <th className="px-3 py-2">Kanallar</th>
+              {isAdmin && <th className="px-3 py-2">Durum</th>}
+              {isAdmin && <th className="px-3 py-2 text-right">İşlemler</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y">
+            {members.map((m) => (
+              <tr
+                key={m.id}
+                className={`transition-colors duration-150 hover:bg-muted/60 ${
+                  m.isActive ? '' : 'text-muted-foreground'
+                }`}
+              >
+                <td className="px-3 py-2 font-medium">{m.name}</td>
+                <td className="px-3 py-2 text-muted-foreground">{m.title ?? '-'}</td>
+                <td className="px-3 py-2">{m.globalRole === 'ADMIN' ? 'Yönetici' : 'Üye'}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {visibleChannelNames(m.memberships)}
+                </td>
+                {isAdmin && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
+                {isAdmin && (
+                  <td className="px-3 py-2 text-right">
+                    <MemberActions
+                      userId={m.id}
+                      name={m.name}
+                      globalRole={m.globalRole}
+                      isActive={m.isActive}
+                      isSelf={m.id === actor.id}
+                    />
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PageContainer>
   )
 }

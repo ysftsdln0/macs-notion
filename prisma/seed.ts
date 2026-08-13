@@ -1,10 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client'
 import { pathToFileURL } from 'node:url'
-import { createInviteToken } from '../src/lib/auth/invite-token'
+import { createInviteToken, inviteExpiry } from '../src/lib/auth/invite-token'
 
 const db = new PrismaClient()
-
-const INVITE_TTL_DAYS = 7
 
 type SeedResult =
   | { ok: true; token: string; url: string }
@@ -62,7 +60,7 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
             globalRole: 'ADMIN',
             channelId: null,
             createdById: null,
-            expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 864e5),
+            expiresAt: inviteExpiry(),
           },
         })
 

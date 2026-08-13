@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader, SectionHeading } from '@/components/layout/page'
 import { CreateInviteForm } from './create-invite-form'
 import { RevokeInviteButton } from './revoke-invite-button'
 
@@ -38,11 +39,11 @@ export default async function AdminPage() {
   ])
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">Yönetim</h1>
+    <PageContainer className="space-y-8">
+      <PageHeader title="Yönetim" />
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">Kanallar</h2>
+        <SectionHeading>Kanallar</SectionHeading>
         {channels.length === 0 ? (
           <EmptyState title="Kanal yok" description="Henüz hiç kanal oluşturulmadı." />
         ) : (
@@ -57,12 +58,12 @@ export default async function AdminPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">Yeni davet</h2>
+        <SectionHeading>Yeni davet</SectionHeading>
         <CreateInviteForm channels={channels.map((c) => ({ id: c.id, name: c.name }))} />
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">Davetler</h2>
+        <SectionHeading>Davetler</SectionHeading>
         {invites.length === 0 ? (
           <EmptyState title="Davet yok" description="Yukarıdaki formla yeni bir davet oluşturarak başlayabilirsin." />
         ) : (
@@ -78,6 +79,6 @@ export default async function AdminPage() {
           </ul>
         )}
       </section>
-    </div>
+    </PageContainer>
   )
 }

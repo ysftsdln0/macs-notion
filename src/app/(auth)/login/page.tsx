@@ -1,10 +1,13 @@
 import { signIn } from '@/lib/auth/config'
-import { Button } from '@/components/ui/button'
+import { AuthHeading, AuthShell, AuthSubmit } from '@/components/layout/auth-shell'
 
 function errorMessage(error: string | undefined): string | null {
   if (!error) return null
   if (error === 'AccessDenied') {
-    return 'Hesabın devre dışı bırakılmış. Kulüp yönetimiyle iletişime geç.'
+    return (
+      'Giriş reddedildi: ya hesabın devre dışı bırakılmış ya da geçerli bir davet linkin yok. ' +
+      'Davet linkin varsa link üzerinden girmelisin; yoksa kulüp yönetimiyle iletişime geç.'
+    )
   }
   return 'Giriş yapılamadı. Lütfen tekrar dene.'
 }
@@ -18,14 +21,16 @@ export default async function LoginPage({
   const message = errorMessage(error)
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6 text-center">
-        <h1 className="text-2xl font-semibold">MACS</h1>
-        <p className="text-sm text-muted-foreground">
+    <AuthShell>
+      <div className="space-y-6 text-center">
+        <AuthHeading title={'MACS’e hoş geldin'}>
           Kulüp çalışma alanına girmek için davet linkine ihtiyacın var.
-        </p>
+        </AuthHeading>
         {message && (
-          <p className="text-sm text-destructive" role="alert">
+          <p
+            className="animate-pop rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            role="alert"
+          >
             {message}
           </p>
         )}
@@ -35,11 +40,12 @@ export default async function LoginPage({
             await signIn('google', { redirectTo: '/' })
           }}
         >
-          <Button type="submit" className="w-full">
-            Google ile devam et
-          </Button>
+          <AuthSubmit>Google ile devam et</AuthSubmit>
         </form>
+        <p className="text-xs text-muted-foreground">
+          Davet linkin yok mu? Kulüp yönetiminden bir link iste.
+        </p>
       </div>
-    </main>
+    </AuthShell>
   )
 }

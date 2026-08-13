@@ -6,6 +6,7 @@ import { listVisibleChannels } from '@/server/channels-query'
 import { listTasks } from '@/server/tasks-query'
 import { listEvents } from '@/server/events-query'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { CreateTaskDialog } from './create-task-dialog'
 import { TaskBoard } from './board'
 import { TaskList } from './task-list'
@@ -64,19 +65,21 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Görevler</h1>
-        <div className="flex items-center gap-2">
-          <Link
-            href={withParam('view', view === 'board' ? 'list' : undefined)}
-            className="text-sm text-primary hover:underline"
-          >
-            {view === 'board' ? 'Liste görünümü' : 'Board görünümü'}
-          </Link>
-          <CreateTaskDialog channels={writableChannels} members={members} />
-        </div>
-      </header>
+    <PageContainer width="wide">
+      <PageHeader
+        title="Görevler"
+        action={
+          <>
+            <Link
+              href={withParam('view', view === 'board' ? 'list' : undefined)}
+              className="text-sm text-primary hover:underline"
+            >
+              {view === 'board' ? 'Liste görünümü' : 'Board görünümü'}
+            </Link>
+            <CreateTaskDialog channels={writableChannels} members={members} />
+          </>
+        }
+      />
 
       <form className="flex flex-wrap items-end gap-2" method="get">
         {view === 'list' && <input type="hidden" name="view" value="list" />}
@@ -130,6 +133,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
       ) : (
         <TaskList tasks={tasks} members={members} events={eventOptions} />
       )}
-    </div>
+    </PageContainer>
   )
 }

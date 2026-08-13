@@ -101,7 +101,7 @@ export function Editor({
     <div className="space-y-3">
       {canWrite && <ConnectionBanner state={connection} />}
       {!canWrite && (
-        <p className="rounded border border-dashed px-3 py-2 text-xs text-muted-foreground">
+        <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
           Bu dokümanı yalnızca görüntüleyebilirsin.
         </p>
       )}
@@ -122,8 +122,8 @@ function ConnectionBanner({ state }: { state: ConnectionState }) {
     <p
       className={
         state === 'connecting'
-          ? 'rounded border border-dashed px-3 py-2 text-xs text-muted-foreground'
-          : 'rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive'
+          ? 'rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground'
+          : 'rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive'
       }
     >
       {message}

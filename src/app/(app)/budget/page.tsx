@@ -7,6 +7,7 @@ import {
 import { listEvents } from '@/server/events-query'
 import { listSponsors } from '@/server/sponsors-query'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { BudgetSummaryCards } from '@/components/budget/summary-cards'
 import { BudgetEntryTable } from '@/components/budget/entry-table'
 import { BudgetEntryDialog } from './entry-dialog'
@@ -52,13 +53,13 @@ export default async function BudgetPage({ searchParams }: { searchParams: Searc
   const scope = budgetChannelIds(actor)
   if (scope !== 'all' && scope.length === 0) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Bütçe</h1>
+      <PageContainer width="wide">
+        <PageHeader title="Bütçe" />
         <EmptyState
           title="Bütçe erişimin yok"
           description="Bütçe kayıtlarını yalnızca yönetim ve kanal liderleri görebilir."
         />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -78,11 +79,8 @@ export default async function BudgetPage({ searchParams }: { searchParams: Searc
   )
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Bütçe</h1>
-        {dialog}
-      </header>
+    <PageContainer width="wide">
+      <PageHeader title="Bütçe" action={dialog} />
 
       <BudgetSummaryCards summary={summary} />
 
@@ -149,6 +147,6 @@ export default async function BudgetPage({ searchParams }: { searchParams: Searc
       ) : (
         <BudgetEntryTable entries={entries} writableChannelIds={writableChannelIds} />
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -72,6 +72,31 @@ export function isSameDay(a: Date, b: Date): boolean {
 
 export const WEEKDAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] as const
 
+/**
+ * Etkinlik formları tarihi ve saati ayrı alanlarda tutar: etkinlikler
+ * çoğunlukla tek günlük, `datetime-local` ise günü her seferinde yeniden
+ * yazdırıyor. Aşağıdaki üçlü, `<input type="date|time">` değerleriyle
+ * server action'ın beklediği `YYYY-MM-DDTHH:mm` arasında çeviri yapar.
+ * Hepsi yerel saat diliminde çalışır — `toISOString()` UTC'ye kaydırırdı.
+ */
+export function formatDateInput(value: Date): string {
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${value.getFullYear()}-${month}-${day}`
+}
+
+export function formatTimeInput(value: Date): string {
+  const hours = String(value.getHours()).padStart(2, '0')
+  const minutes = String(value.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+/** Boş tarihte `null` döner: çağıran taraf alanı hiç göndermemeyi seçebilir. */
+export function joinDateTime(date: string, time: string): string | null {
+  if (date === '') return null
+  return `${date}T${time === '' ? '00:00' : time}`
+}
+
 export function describeMonth({ year, month }: MonthKey): string {
   return new Date(year, month - 1, 1).toLocaleDateString('tr-TR', {
     month: 'long',

@@ -23,6 +23,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-brand: var(--brand);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -49,72 +50,91 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* İki ayrı iş, iki ayrı token — ikisi de aynı lacivert ailesinde.
+     --brand  : marka işareti (logo kutusu, wordmark noktası). Koyu lacivert.
+     --primary: etkileşim aksanı (aktif nav, buton, link, focus, chart-1).
+     Ayrım şart: --brand'in L'si (0.1915) --foreground'unkiyle (0.21) neredeyse
+     aynı, kontrastları 1.04:1 — yani aksan olarak kullanıldığında "biraz koyu
+     yazı"dan başka bir şey okumuyordu. --primary bir kademe açık: gövdeye karşı
+     2.68:1 ayrışır, zemine karşı 6.34:1, sidebar zeminine karşı 6.07:1 (AA).
+     Aksan değişimi hâlâ tek satır — --ring/--chart-1/--sidebar-* hepsi okur. */
+  --brand: oklch(0.1915 0.0517 262.2);
+  --primary: oklch(0.48 0.11 262);
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.21 0.02 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.21 0.02 260);
+  --primary-foreground: oklch(0.985 0.002 250);
+  --secondary: oklch(0.965 0.006 240);
+  --secondary-foreground: oklch(0.21 0.02 260);
+  --muted: oklch(0.96 0.006 240);
+  --muted-foreground: oklch(0.48 0.02 260);
+  --accent: oklch(0.955 0.02 255);
+  --accent-foreground: oklch(0.35 0.07 255);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.92 0.006 240);
+  --input: oklch(0.92 0.006 240);
+  --ring: var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.62 0.15 250);
+  --chart-3: oklch(0.7 0.1 70);
+  --chart-4: oklch(0.62 0.15 350);
+  --chart-5: oklch(0.5 0.12 290);
+  /* Tek yarıçap ölçeği. Üç basamak var, dördüncüsü yok:
+     rounded-md  (~10px) küçük satır içi kutular — kanal ikonu, menü satırı
+     rounded-lg  ( 12px) VARSAYILAN — buton, input, kart, liste, satır
+     rounded-xl  (~17px) büyük yüzeyler — auth kartı, marka kutusu
+     rounded-full        sayaç ve pill rozetler
+     Çıplak `rounded` (4px) hiçbir yerde kullanılmaz; ölçeğin dışındadır. */
+  --radius: 0.75rem;
+  --sidebar: oklch(0.97 0.005 240);
+  --sidebar-foreground: oklch(0.21 0.02 260);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.985 0.002 250);
+  --sidebar-accent: oklch(0.94 0.015 255);
+  --sidebar-accent-foreground: oklch(0.3 0.05 255);
+  --sidebar-border: oklch(0.912 0.006 240);
+  --sidebar-ring: var(--primary);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Koyu modda ayrım gereksiz: koyu lacivert bu zeminde zaten okunmaz, o yüzden
+     marka işareti de etkileşim aksanı da ailenin açık tonunu kullanır. Açık
+     modda ayrık, koyu modda aynı — ikisi de kasıtlı. */
+  --brand: oklch(0.6541 0.1137 263.6);
+  --primary: var(--brand);
+  --background: oklch(0.155 0.015 240);
+  --foreground: oklch(0.96 0.008 240);
+  --card: oklch(0.2 0.018 240);
+  --card-foreground: oklch(0.96 0.008 240);
+  --popover: oklch(0.2 0.018 240);
+  --popover-foreground: oklch(0.96 0.008 240);
+  --primary-foreground: oklch(0.16 0.03 260);
+  --secondary: oklch(0.27 0.018 240);
+  --secondary-foreground: oklch(0.96 0.008 240);
+  --muted: oklch(0.26 0.018 240);
+  --muted-foreground: oklch(0.72 0.015 240);
+  --accent: oklch(0.29 0.045 255);
+  --accent-foreground: oklch(0.9 0.04 250);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --ring: var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: oklch(0.68 0.14 250);
+  --chart-3: oklch(0.78 0.1 70);
+  --chart-4: oklch(0.72 0.14 350);
+  --chart-5: oklch(0.58 0.11 290);
+  --sidebar: oklch(0.185 0.018 240);
+  --sidebar-foreground: oklch(0.96 0.008 240);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.16 0.03 260);
+  --sidebar-accent: oklch(0.29 0.045 255);
+  --sidebar-accent-foreground: oklch(0.9 0.04 250);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: var(--primary);
 }
 
 @layer base {
@@ -126,5 +146,115 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ---------- Scrollbar ---------- */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ---------- Motion: keyframes ---------- */
+@keyframes aurora-drift {
+  0% { transform: translate3d(-8%, -4%, 0) scale(1); }
+  25% { transform: translate3d(6%, 8%, 0) scale(1.12); }
+  50% { transform: translate3d(-4%, 12%, 0) scale(0.96); }
+  75% { transform: translate3d(8%, -6%, 0) scale(1.08); }
+  100% { transform: translate3d(-8%, -4%, 0) scale(1); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* ---------- Motion: utility classes ----------
+   `@layer utilities` içinde: katmansız CSS her `@layer`'ı yendiği için
+   bunlar dışarıda kalsaydı `@layer base` sıfırlamalarını ve Tailwind
+   yardımcılarını sessizce ezerlerdi. */
+@layer utilities {
+  /* 0.65s'ten 0.4s'e indirildi: bu animasyon HER rota değişiminde tüm içerik
+     alanında oynuyor (app-content.tsx), yani günde onlarca kez. Vitrin
+     animasyonu değil, gezinme geri bildirimi — kısa olmalı. */
+  .animate-fade-up {
+    animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.35s ease-out both;
+  }
+  .animate-pop {
+    animation: pop-in 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  }
+  .animate-float-slow {
+    animation: float-slow 8s ease-in-out infinite;
+  }
+  .animate-aurora {
+    /* `will-change` bilerek yok: çalışan animasyon katmanı zaten kendi
+       yükseltir, sabit bırakmak reduced-motion'da animasyon kapalıyken bile
+       GPU katmanı ayırtırdı. */
+    animation: aurora-drift 28s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .animate-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in oklch, var(--primary) 12%, transparent) 50%,
+      transparent 70%
+    );
+    animation: shimmer-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+/* ---------- Motion: reduced ----------
+   Bilerek katmansız: her `@layer`'ı yener, böylece yukarıdaki
+   yardımcılar kapanır. Yeni bir `.animate-*` eklenirse buraya da eklenmeli. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-pop,
+  .animate-float-slow,
+  .animate-aurora,
+  .animate-shimmer::after {
+    animation: none;
+  }
+  *, ::before, ::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

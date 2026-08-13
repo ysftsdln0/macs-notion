@@ -105,6 +105,39 @@ describe('createTask', () => {
     if (!r.ok) expect(r.error.code).toBe('NOT_FOUND')
   })
 
+  it('etkinliğe bağlı açılan görev o etkinliğin listesinde çıkar', async () => {
+    // Etkinlik detay sayfasındaki "Görev ekle" bu yolu kullanır.
+    const event = await db.event.create({
+      data: {
+        title: 'Kongre', channelId: openChannel.id, createdById: lead.id,
+        startsAt: new Date('2026-11-01T09:00:00Z'),
+      },
+    })
+    actorRef.current = { id: member.id }
+    const r = await createTask({
+      title: 'Standı kur', channelId: openChannel.id, eventId: event.id,
+    })
+    if (!r.ok) throw new Error('beklenmedik hata')
+
+    const linked = await listTasks(await actorOf(member.id), { eventId: event.id })
+    expect(linked.map((t) => t.id)).toEqual([r.data.id])
+  })
+
+  it('başka kanaldaki etkinliğe bağlı görev açılamaz', async () => {
+    const event = await db.event.create({
+      data: {
+        title: 'Kapalı toplantı', channelId: privateChannel.id, createdById: lead.id,
+        startsAt: new Date('2026-11-01T09:00:00Z'),
+      },
+    })
+    actorRef.current = { id: member.id }
+    const r = await createTask({
+      title: 'Yanlış bağlantı', channelId: openChannel.id, eventId: event.id,
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.fields?.eventId).toBeDefined()
+  })
+
   it('atama bildirimi üretir; kişi kendine atarsa üretmez', async () => {
     actorRef.current = { id: member.id }
     const r = await createTask({

@@ -1,12 +1,13 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { AlertTriangle, Gift, UserPlus } from 'lucide-react'
 import { db } from '@/lib/db'
 import { hashInviteToken } from '@/lib/auth/invite-token'
 import { signIn } from '@/lib/auth/config'
 import { getActor } from '@/lib/auth/session'
 import { consumeInvite } from '@/server/invite-service'
 import { INVITE_COOKIE, INVITE_COOKIE_MAX_AGE } from '@/lib/auth/invite-cookie'
-import { Button } from '@/components/ui/button'
+import { AuthHeading, AuthShell, AuthSubmit } from '@/components/layout/auth-shell'
 
 export default async function InvitePage({
   params,
@@ -29,16 +30,15 @@ export default async function InvitePage({
     // zaten geçersiz hale gelmiştir (başka biri kapmıştır), o yüzden bu mesaj
     // bu dal içinde gösterilir; ayrı bir dal hiç render edilmez.
     return (
-      <main className="flex min-h-dvh items-center justify-center p-6">
-        <div className="max-w-sm space-y-2 text-center">
-          <h1 className="text-xl font-semibold">Davet geçersiz</h1>
-          <p className="text-sm text-muted-foreground">
+      <AuthShell>
+        <div className="space-y-6 text-center">
+          <AuthHeading icon={AlertTriangle} tone="destructive" title="Davet geçersiz">
             {failed
               ? 'Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.'
               : 'Bu davet kullanılmış, iptal edilmiş veya süresi dolmuş. Kulüp yönetiminden yeni bir link iste.'}
-          </p>
+          </AuthHeading>
         </div>
-      </main>
+      </AuthShell>
     )
   }
 
@@ -50,14 +50,16 @@ export default async function InvitePage({
   const actor = await getActor()
   if (actor) {
     return (
-      <main className="flex min-h-dvh items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-6 text-center">
-          <h1 className="text-2xl font-semibold">Davetiye</h1>
-          {invite.channel && (
-            <p className="text-sm text-muted-foreground">
-              <strong>{invite.channel.name}</strong> kanalına ekleneceksin.
-            </p>
-          )}
+      <AuthShell>
+        <div className="space-y-6 text-center">
+          <AuthHeading icon={UserPlus} title="Davetiye">
+            {invite.channel && (
+              <>
+                <strong className="font-medium text-foreground">{invite.channel.name}</strong>{' '}
+                kanalına ekleneceksin.
+              </>
+            )}
+          </AuthHeading>
           <form
             action={async () => {
               'use server'
@@ -66,22 +68,24 @@ export default async function InvitePage({
               redirect('/')
             }}
           >
-            <Button type="submit" className="w-full">Daveti kabul et</Button>
+            <AuthSubmit>Daveti kabul et</AuthSubmit>
           </form>
         </div>
-      </main>
+      </AuthShell>
     )
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6 text-center">
-        <h1 className="text-2xl font-semibold">MACS&apos;e davet edildin</h1>
-        {invite.channel && (
-          <p className="text-sm text-muted-foreground">
-            Kanal: <strong>{invite.channel.name}</strong>
-          </p>
-        )}
+    <AuthShell>
+      <div className="space-y-6 text-center">
+        <AuthHeading icon={Gift} title={'MACS’e davet edildin'}>
+          {invite.channel && (
+            <>
+              Kanal:{' '}
+              <strong className="font-medium text-foreground">{invite.channel.name}</strong>
+            </>
+          )}
+        </AuthHeading>
         <form
           action={async () => {
             'use server'
@@ -95,12 +99,12 @@ export default async function InvitePage({
             await signIn('google', { redirectTo: '/onboarding' })
           }}
         >
-          <Button type="submit" className="w-full">Google ile devam et</Button>
+          <AuthSubmit>Google ile devam et</AuthSubmit>
         </form>
         <p className="text-xs text-muted-foreground">
           Zaten bir MACS hesabın varsa önce giriş yap, sonra bu bağlantıyı tekrar aç.
         </p>
       </div>
-    </main>
+    </AuthShell>
   )
 }

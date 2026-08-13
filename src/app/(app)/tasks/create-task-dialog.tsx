@@ -21,12 +21,16 @@ export type TaskMemberOption = { id: string; name: string }
 
 export function CreateTaskDialog({
   channels, members, triggerLabel = 'Yeni görev', defaultChannelId, defaultStatus = 'TODO',
+  eventId, eventTitle,
 }: {
   channels: TaskChannelOption[]
   members: TaskMemberOption[]
   triggerLabel?: string
   defaultChannelId?: string
   defaultStatus?: TaskStatus
+  /** Verilirse görev bu etkinliğe bağlı açılır (etkinlik detay sayfası). */
+  eventId?: string
+  eventTitle?: string
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -46,9 +50,10 @@ export function CreateTaskDialog({
       const result = await createTask({
         title, channelId, status, priority, assigneeIds,
         dueDate: dueDate === '' ? null : dueDate,
+        eventId: eventId ?? null,
       })
       if (!result.ok) {
-        setError(result.error.fields?.title ?? result.error.message)
+        setError(result.error.fields?.eventId ?? result.error.fields?.title ?? result.error.message)
         return
       }
       toast.success('Görev oluşturuldu.')
@@ -87,19 +92,28 @@ export function CreateTaskDialog({
                 maxLength={160}
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="task-channel">Kanal</Label>
-              <select
-                id="task-channel"
-                className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                value={channelId}
-                onChange={(e) => setChannelId(e.target.value)}
-              >
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
+            {/* Etkinliğe bağlı açılışta kanal seçilemez: `createTask`, görevin
+                kanalı etkinliğinkinden farklıysa VALIDATION döndürüyor. */}
+            {eventId ? (
+              <p className="text-xs text-muted-foreground">
+                {eventTitle ? <>“{eventTitle}” etkinliğine bağlanacak</> : 'Etkinliğe bağlanacak'}
+                {channels[0] ? ` · ${channels[0].name}` : ''}
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <Label htmlFor="task-channel">Kanal</Label>
+                <select
+                  id="task-channel"
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                  value={channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                >
+                  {channels.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex gap-3">
               <div className="flex-1 space-y-1">
                 <Label htmlFor="task-status">Durum</Label>

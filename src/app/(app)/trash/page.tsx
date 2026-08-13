@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireActor } from '@/lib/auth/session'
 import { listArchivedDocuments } from '@/server/documents-query'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { describeDocumentVisibility } from '@/lib/document-labels'
 import { TrashRowActions } from './trash-row-actions'
 
@@ -16,13 +17,11 @@ export default async function TrashPage() {
   const documents = await listArchivedDocuments()
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Çöp kutusu</h1>
-        <p className="text-sm text-muted-foreground">
-          Arşivlenmiş dokümanlar. Geri yükleyebilir ya da kalıcı olarak silebilirsin.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        title="Çöp kutusu"
+        description="Arşivlenmiş dokümanlar. Geri yükleyebilir ya da kalıcı olarak silebilirsin."
+      />
 
       {documents.length === 0 ? (
         <EmptyState
@@ -30,13 +29,13 @@ export default async function TrashPage() {
           description="Arşivlenen dokümanlar burada birikir."
         />
       ) : (
-        <ul className="divide-y rounded-lg border text-sm">
+        <ul className="divide-y overflow-hidden rounded-lg border bg-card text-sm">
           {documents.map((doc) => (
             <li key={doc.id} className="flex items-center justify-between gap-3 px-3 py-2">
               <span className="min-w-0">
                 <span className="mr-1">{doc.icon ?? '📄'}</span>
                 <span className="truncate">{doc.title || 'Adsız doküman'}</span>
-                <span className="ml-2 text-xs text-muted-foreground">
+                <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
                   {doc.channel.name} · {describeDocumentVisibility(doc.visibility)}
                   {doc.archivedAt && ` · ${doc.archivedAt.toLocaleDateString('tr-TR')}`}
                 </span>
@@ -46,6 +45,6 @@ export default async function TrashPage() {
           ))}
         </ul>
       )}
-    </div>
+    </PageContainer>
   )
 }

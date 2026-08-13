@@ -51,6 +51,11 @@ export function BudgetEntryDialog({
   const [sponsorId, setSponsorId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // `defaultEventId` yalnızca etkinlik detay sayfasından gelir: orada kalem
+  // zaten o etkinliğe aittir, kanal da etkinliğin kanalıdır. İkisini de seçime
+  // açık bırakmak, kullanıcının bağı bulunduğu sayfadan koparmasına izin verirdi.
+  const pinnedToEvent = defaultEventId !== undefined
+  const pinnedEventTitle = events.find((e) => e.id === defaultEventId)?.title
   const channelEvents = events.filter((e) => e.channelId === channelId)
   const channelSponsors = sponsors.filter((s) => s.channelId === channelId)
 
@@ -208,20 +213,22 @@ export function BudgetEntryDialog({
             </div>
 
             <div className="flex gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="budget-channel">Kanal</Label>
-                <select
-                  id="budget-channel"
-                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                  value={channelId}
-                  onChange={(e) => handleChannelChange(e.target.value)}
-                >
-                  {channels.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="w-40 space-y-1">
+              {!pinnedToEvent && (
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="budget-channel">Kanal</Label>
+                  <select
+                    id="budget-channel"
+                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                    value={channelId}
+                    onChange={(e) => handleChannelChange(e.target.value)}
+                  >
+                    {channels.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className={pinnedToEvent ? 'flex-1 space-y-1' : 'w-40 space-y-1'}>
                 <Label htmlFor="budget-status">Durum</Label>
                 <select
                   id="budget-status"
@@ -237,20 +244,31 @@ export function BudgetEntryDialog({
             </div>
 
             <div className="flex gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="budget-event">Etkinlik (opsiyonel)</Label>
-                <select
-                  id="budget-event"
-                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                  value={eventId}
-                  onChange={(e) => setEventId(e.target.value)}
-                >
-                  <option value="">Yok</option>
-                  {channelEvents.map((e) => (
-                    <option key={e.id} value={e.id}>{e.title}</option>
-                  ))}
-                </select>
-              </div>
+              {pinnedToEvent ? (
+                <p className="flex-1 text-xs text-muted-foreground">
+                  {pinnedEventTitle
+                    ? <>“{pinnedEventTitle}” etkinliğine bağlanacak</>
+                    : 'Etkinliğe bağlanacak'}
+                  {channels.find((c) => c.id === channelId)
+                    ? ` · ${channels.find((c) => c.id === channelId)?.name}`
+                    : ''}
+                </p>
+              ) : (
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="budget-event">Etkinlik (opsiyonel)</Label>
+                  <select
+                    id="budget-event"
+                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                    value={eventId}
+                    onChange={(e) => setEventId(e.target.value)}
+                  >
+                    <option value="">Yok</option>
+                    {channelEvents.map((e) => (
+                      <option key={e.id} value={e.id}>{e.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex-1 space-y-1">
                 <Label htmlFor="budget-sponsor">Sponsor (opsiyonel)</Label>
                 <select

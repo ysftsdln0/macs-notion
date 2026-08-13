@@ -10,7 +10,7 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   return (
     <main className="min-w-0 flex-1">
-      <div key={pathname} className="animate-fade-up h-full p-6">
+      <div key={pathname} className="animate-fade-up h-full p-4 md:p-6">
         {children}
       </div>
     </main>

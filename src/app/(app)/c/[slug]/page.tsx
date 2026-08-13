@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader, SectionHeading } from '@/components/layout/page'
 import { ChannelMemberRowActions } from './channel-member-row-actions'
 import { AddChannelMemberForm } from './add-channel-member-form'
 
@@ -40,15 +41,10 @@ export default async function ChannelPage({ params }: { params: Promise<{ slug: 
     : []
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">{channel.name}</h1>
-        {channel.description && (
-          <p className="text-sm text-muted-foreground">{channel.description}</p>
-        )}
-      </header>
+    <PageContainer>
+      <PageHeader title={channel.name} {...(channel.description ? { description: channel.description } : {})} />
       <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">Üyeler</h2>
+        <SectionHeading>Üyeler</SectionHeading>
         <ul className="space-y-1 text-sm">
           {channel.members.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-2">
@@ -76,6 +72,6 @@ export default async function ChannelPage({ params }: { params: Promise<{ slug: 
         title="İçerik henüz yok"
         description="Doküman, görev ve etkinlikler sonraki sürümde bu sayfada listelenecek."
       />
-    </div>
+    </PageContainer>
   )
 }

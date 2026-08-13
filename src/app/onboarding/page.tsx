@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
+import { AuthShell } from '@/components/layout/auth-shell'
 import { ProfileForm } from './profile-form'
 
 export default async function OnboardingPage() {
@@ -21,12 +22,19 @@ export default async function OnboardingPage() {
   if (user.onboardedAt) redirect('/')
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Profilini tamamla</h1>
-        <p className="text-sm text-muted-foreground">Kulüpte nasıl görüneceğini belirle.</p>
+    <AuthShell>
+      <div className="space-y-6 text-center">
+        <div className="space-y-1.5">
+          {/* İki adımlı akışın 1. adımı: geniş çubuk aktif, dar çubuk sıradaki. */}
+          <div className="mx-auto flex w-fit items-center gap-1.5">
+            <span className="h-1.5 w-8 rounded-full bg-primary" />
+            <span className="h-1.5 w-4 rounded-full bg-muted" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Profilini tamamla</h1>
+          <p className="text-sm text-muted-foreground">Kulüpte nasıl görüneceğini belirle.</p>
+        </div>
+        <ProfileForm defaultName={user.name} />
       </div>
-      <ProfileForm defaultName={user.name} />
-    </main>
+    </AuthShell>
   )
 }

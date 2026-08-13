@@ -5,10 +5,8 @@ import { db } from '@/lib/db'
 import { defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
-import { createInviteToken } from '@/lib/auth/invite-token'
+import { createInviteToken, inviteExpiry } from '@/lib/auth/invite-token'
 import { recordActivity } from '@/lib/activity'
-
-const INVITE_TTL_DAYS = 7
 
 export const createInvite = defineAction({
   input: z.object({
@@ -26,7 +24,7 @@ export const createInvite = defineAction({
         globalRole: input.globalRole,
         channelId: input.channelId,
         channelRole: input.channelRole,
-        expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 864e5),
+        expiresAt: inviteExpiry(),
         createdById: actor.id,
       },
     })

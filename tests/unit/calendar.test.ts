@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatMonthKey, isSameDay, monthGrid, monthRange, parseMonthKey, shiftMonth,
+  formatDateInput, formatMonthKey, formatTimeInput, isSameDay, joinDateTime,
+  monthGrid, monthRange, parseMonthKey, shiftMonth,
 } from '@/lib/calendar'
 
 describe('parseMonthKey', () => {
@@ -69,5 +70,40 @@ describe('isSameDay', () => {
     expect(isSameDay(new Date(2026, 7, 12, 9), new Date(2026, 7, 12, 23))).toBe(true)
     expect(isSameDay(new Date(2026, 7, 12), new Date(2026, 7, 13))).toBe(false)
     expect(isSameDay(new Date(2026, 7, 12), new Date(2025, 7, 12))).toBe(false)
+  })
+})
+
+describe('formatDateInput', () => {
+  it('yerel günü sıfır dolgulu yazar', () => {
+    expect(formatDateInput(new Date(2026, 7, 3))).toBe('2026-08-03')
+    expect(formatDateInput(new Date(2026, 0, 31))).toBe('2026-01-31')
+  })
+
+  it('gece yarısına yakın saatlerde günü kaydırmaz', () => {
+    // toISOString() kullanılsaydı UTC+3'te bu tarih bir gün geriye düşerdi.
+    expect(formatDateInput(new Date(2026, 7, 12, 0, 30))).toBe('2026-08-12')
+    expect(formatDateInput(new Date(2026, 7, 12, 23, 45))).toBe('2026-08-12')
+  })
+})
+
+describe('formatTimeInput', () => {
+  it('HH:mm üretir', () => {
+    expect(formatTimeInput(new Date(2026, 7, 12, 9, 5))).toBe('09:05')
+    expect(formatTimeInput(new Date(2026, 7, 12, 18, 30))).toBe('18:30')
+    expect(formatTimeInput(new Date(2026, 7, 12, 0, 0))).toBe('00:00')
+  })
+})
+
+describe('joinDateTime', () => {
+  it('tarih ve saati datetime-local biçiminde birleştirir', () => {
+    expect(joinDateTime('2026-08-12', '09:00')).toBe('2026-08-12T09:00')
+  })
+
+  it('saat boşsa gün başına sabitler', () => {
+    expect(joinDateTime('2026-08-12', '')).toBe('2026-08-12T00:00')
+  })
+
+  it('tarih boşsa null döner', () => {
+    expect(joinDateTime('', '09:00')).toBeNull()
   })
 })

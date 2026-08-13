@@ -7,6 +7,7 @@ import { listEvents } from '@/server/events-query'
 import { listComments } from '@/server/comments-query'
 import { listUsersWithAccess } from '@/server/entity-access'
 import { CommentThread } from '@/components/comments/comment-thread'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { SponsorDetailForm } from './sponsor-detail-form'
 
 export default async function SponsorDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,11 +40,8 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
     .map((e) => ({ id: e.id, title: e.title }))
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-1 border-b pb-4">
-        <h1 className="text-2xl font-semibold">{context.sponsor.name}</h1>
-        <p className="text-sm text-muted-foreground">{context.sponsor.channel.name}</p>
-      </header>
+    <PageContainer>
+      <PageHeader title={context.sponsor.name} description={context.sponsor.channel.name} />
 
       <SponsorDetailForm
         sponsor={context.sponsor}
@@ -61,6 +59,6 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
         isAdmin={actor.globalRole === 'ADMIN'}
         mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
       />
-    </div>
+    </PageContainer>
   )
 }

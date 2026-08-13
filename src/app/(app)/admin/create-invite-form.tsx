@@ -91,7 +91,7 @@ export function CreateInviteForm({ channels }: { channels: { id: string; name: s
       </form>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {generatedUrl && (
-        <div className="space-y-1 rounded-md bg-muted p-3">
+        <div className="space-y-1 rounded-lg bg-muted p-3">
           <p className="text-xs text-muted-foreground">
             Bu bağlantı yalnızca bir kez gösterilir — şimdi kopyala, sayfadan ayrılınca tekrar erişemezsin.
           </p>

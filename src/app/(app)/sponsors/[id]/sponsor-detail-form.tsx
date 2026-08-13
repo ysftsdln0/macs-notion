@@ -43,11 +43,11 @@ export function SponsorDetailForm({
         <dt className="text-muted-foreground">Tutar</dt>
         <dd>{formatAmount(sponsor.amount, sponsor.currency)}</dd>
         <dt className="text-muted-foreground">İletişim</dt>
-        <dd>{sponsor.contactName ?? '—'} {sponsor.contactEmail ?? ''} {sponsor.contactPhone ?? ''}</dd>
+        <dd>{sponsor.contactName ?? '-'} {sponsor.contactEmail ?? ''} {sponsor.contactPhone ?? ''}</dd>
         <dt className="text-muted-foreground">Etkinlik</dt>
-        <dd>{sponsor.event?.title ?? '—'}</dd>
+        <dd>{sponsor.event?.title ?? '-'}</dd>
         <dt className="text-muted-foreground">Sorumlu</dt>
-        <dd>{sponsor.owner?.name ?? '—'}</dd>
+        <dd>{sponsor.owner?.name ?? '-'}</dd>
         {sponsor.notes && (
           <>
             <dt className="text-muted-foreground">Notlar</dt>

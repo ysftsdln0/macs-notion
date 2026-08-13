@@ -1,3 +1,18 @@
+import {
+  Activity,
+  CalendarDays,
+  CheckSquare,
+  FileText,
+  Gift,
+  Hash,
+  Heart,
+  MessageSquare,
+  UserPlus,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react'
+
 /**
  * `Activity.verb` veritabanında plandaki (satır 2671) İngilizce, makine
  * okunur biçimiyle saklanır — bu değişmez, plan bunu açıkça şart koşuyor.
@@ -53,4 +68,31 @@ const activityVerbLabels: Record<string, string> = {
 
 export function describeActivityVerb(verb: string): string {
   return activityVerbLabels[verb] ?? 'bilinmeyen bir işlem yaptı'
+}
+
+/**
+ * Verb ikonu neredeyse tamamen ad alanından (`verb`'in ilk parçası) türer, o
+ * yüzden burada verb başına değil ad alanı başına eşleşme tutulur — yeni bir
+ * verb eklendiğinde ikonu kendiliğinden gelir. Yalnızca aynı ad alanı içinde
+ * anlamı ayrışan verb'ler `verbOverrides`'ta tek tek listelenir.
+ */
+const namespaceIcons: Record<string, LucideIcon> = {
+  channel: Hash,
+  member: Users,
+  invite: Gift,
+  document: FileText,
+  comment: MessageSquare,
+  task: CheckSquare,
+  event: CalendarDays,
+  sponsor: Heart,
+  budget: Wallet,
+}
+
+const verbOverrides: Record<string, LucideIcon> = {
+  'channel.memberAdded': UserPlus,
+  'channel.memberRemoved': Users,
+}
+
+export function activityVerbIcon(verb: string): LucideIcon {
+  return verbOverrides[verb] ?? namespaceIcons[verb.split('.')[0] ?? ''] ?? Activity
 }

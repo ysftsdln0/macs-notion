@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireActor } from '@/lib/auth/session'
 import { listNotifications } from '@/server/notifications-query'
 import { EmptyState } from '@/components/state/empty-state'
+import { PageContainer, PageHeader } from '@/components/layout/page'
 import { describeNotificationKind, notificationHref } from '@/lib/notification-labels'
 import { MarkReadButton } from './mark-read-button'
 
@@ -11,13 +12,11 @@ export default async function InboxPage() {
   const unread = notifications.filter((n) => n.readAt === null)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">
-          Gelen kutusu{unread.length > 0 && ` (${unread.length})`}
-        </h1>
-        {unread.length > 0 && <MarkReadButton />}
-      </header>
+    <PageContainer>
+      <PageHeader
+        title={`Gelen kutusu${unread.length > 0 ? ` (${unread.length})` : ''}`}
+        action={unread.length > 0 ? <MarkReadButton /> : undefined}
+      />
 
       {notifications.length === 0 ? (
         <EmptyState
@@ -25,12 +24,18 @@ export default async function InboxPage() {
           description="Sana atanan görevler, adının geçtiği yorumlar ve etkinlik bağlantıları burada görünecek."
         />
       ) : (
-        <ul className="divide-y rounded-lg border text-sm">
+        <ul className="divide-y overflow-hidden rounded-lg border bg-card text-sm">
           {notifications.map((notification) => (
             <li
               key={notification.id}
-              className={`flex items-center justify-between gap-3 px-3 py-2 ${
-                notification.readAt === null ? 'bg-muted/40' : ''
+              // Okunmamış satır: aksan tonlu sol kenar + hafif zemin. Kenar
+              // çizgisi `border-l-2` yerine kutu-içi bir şerit değil, gerçek
+              // kenarlık — satır yüksekliğini değiştirmesin diye okunmuşlarda
+              // da aynı kalınlıkta ama saydam.
+              className={`flex items-center justify-between gap-3 border-l-2 px-3 py-2 ${
+                notification.readAt === null
+                  ? 'border-l-primary bg-primary/5'
+                  : 'border-l-transparent'
               }`}
             >
               <Link
@@ -42,13 +47,15 @@ export default async function InboxPage() {
                 <span className="text-muted-foreground">{notification.entityTitle}</span>
               </Link>
               <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                <time>{notification.createdAt.toLocaleString('tr-TR')}</time>
+                <time className="font-mono">
+                  {notification.createdAt.toLocaleString('tr-TR')}
+                </time>
                 {notification.readAt === null && <MarkReadButton ids={[notification.id]} />}
               </span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </PageContainer>
   )
 }

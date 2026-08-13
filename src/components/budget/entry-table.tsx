@@ -66,7 +66,7 @@ export function BudgetEntryTable({
                       {entry.event.title}
                     </Link>
                   ) : (
-                    '—'
+                    '-'
                   )}
                 </td>
                 <td className="py-2">
@@ -78,7 +78,7 @@ export function BudgetEntryTable({
                       {entry.receipt.fileName}
                     </a>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </td>
                 {anyWritable && (

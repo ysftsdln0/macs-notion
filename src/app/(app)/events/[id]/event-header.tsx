@@ -7,13 +7,16 @@ import { archiveEvent, updateEvent } from '@/server/events'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatDateInput, formatTimeInput, joinDateTime } from '@/lib/calendar'
 import { EVENT_STATUS_ORDER, describeEventStatus } from '@/lib/task-labels'
 import type { EventStatus } from '@prisma/client'
 
-function toLocalInput(value: Date | null): string {
-  if (!value) return ''
-  const offset = value.getTimezoneOffset() * 60_000
-  return new Date(value.getTime() - offset).toISOString().slice(0, 16)
+function toDateInput(value: Date | null): string {
+  return value ? formatDateInput(value) : ''
+}
+
+function toTimeInput(value: Date | null): string {
+  return value ? formatTimeInput(value) : ''
 }
 
 export function EventHeader({
@@ -37,18 +40,38 @@ export function EventHeader({
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(event.title)
   const [description, setDescription] = useState(event.description ?? '')
-  const [startsAt, setStartsAt] = useState(toLocalInput(event.startsAt))
-  const [endsAt, setEndsAt] = useState(toLocalInput(event.endsAt))
+  const [date, setDate] = useState(toDateInput(event.startsAt))
+  const [startTime, setStartTime] = useState(toTimeInput(event.startsAt))
+  const [endTime, setEndTime] = useState(toTimeInput(event.endsAt))
+  // Kayıtlı bitiş başka bir gündeyse çok günlük moda açılır.
+  const [multiDay, setMultiDay] = useState(
+    event.endsAt !== null && toDateInput(event.endsAt) !== toDateInput(event.startsAt),
+  )
+  const [endDate, setEndDate] = useState(toDateInput(event.endsAt))
   const [location, setLocation] = useState(event.location ?? '')
   const [error, setError] = useState<string | null>(null)
 
   function handleSave() {
     setError(null)
+
+    const startsAt = joinDateTime(date, startTime)
+    if (!startsAt) {
+      setError('Etkinlik tarihi seçilmeli.')
+      return
+    }
+    const endsAt =
+      multiDay || endTime !== ''
+        ? joinDateTime(multiDay ? endDate : date, multiDay && endTime === '' ? '23:59' : endTime)
+        : null
+    if (multiDay && !endsAt) {
+      setError('Bitiş tarihi seçilmeli.')
+      return
+    }
+
     startTransition(async () => {
       const result = await updateEvent({
-        id: event.id, title, startsAt,
+        id: event.id, title, startsAt, endsAt,
         description: description.trim() === '' ? null : description,
-        endsAt: endsAt === '' ? null : endsAt,
         location: location.trim() === '' ? null : location,
       })
       if (!result.ok) {
@@ -91,15 +114,42 @@ export function EventHeader({
           <Label htmlFor="edit-title">Ad</Label>
           <Input id="edit-title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="edit-date">Tarih</Label>
+          <Input id="edit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
         <div className="flex gap-3">
           <div className="flex-1 space-y-1">
-            <Label htmlFor="edit-start">Başlangıç</Label>
-            <Input id="edit-start" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            <Label htmlFor="edit-start-time">Başlangıç saati</Label>
+            <Input id="edit-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           </div>
           <div className="flex-1 space-y-1">
-            <Label htmlFor="edit-end">Bitiş</Label>
-            <Input id="edit-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            <Label htmlFor="edit-end-time">Bitiş saati</Label>
+            <Input id="edit-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </div>
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-input accent-primary"
+              checked={multiDay}
+              onChange={(e) => setMultiDay(e.target.checked)}
+            />
+            Başka bir günde bitiyor
+          </label>
+          {multiDay && (
+            <div className="space-y-1">
+              <Label htmlFor="edit-end-date">Bitiş tarihi</Label>
+              <Input
+                id="edit-end-date"
+                type="date"
+                value={endDate}
+                min={date}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-location">Konum</Label>

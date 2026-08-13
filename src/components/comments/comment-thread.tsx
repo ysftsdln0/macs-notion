@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { addComment, deleteComment, editComment } from '@/server/comments'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/state/empty-state'
+import { SectionHeading } from '@/components/layout/page'
 import type { CommentView } from '@/server/comments-query'
 import type { CommentableEntityType } from '@/server/entity-access'
 
@@ -100,7 +101,7 @@ export function CommentThread({
 
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium uppercase text-muted-foreground">Yorumlar</h2>
+      <SectionHeading>Yorumlar</SectionHeading>
 
       {comments.length === 0 ? (
         <EmptyState title="Henüz yorum yok" description="İlk yorumu sen yaz." />
@@ -110,13 +111,13 @@ export function CommentThread({
             const mine = comment.author.id === currentUserId
             if (comment.deletedAt) {
               return (
-                <li key={comment.id} className="rounded border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                <li key={comment.id} className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
                   Bu yorum silindi.
                 </li>
               )
             }
             return (
-              <li key={comment.id} className="rounded border px-3 py-2">
+              <li key={comment.id} className="rounded-lg border bg-card px-3 py-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium">{comment.author.name}</span>
                   <span className="text-xs text-muted-foreground">
