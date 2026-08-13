@@ -172,3 +172,78 @@ describe('can() — kaynak türü uyuşmazlığı kapalı hata verir', () => {
     expect(can(admin, 'content:delete', { kind: 'member', id: 'x' })).toBe(false)
   })
 })
+
+describe('can() — rol izinleri', () => {
+  const boardMember = makeActor({
+    id: 'yk',
+    permissions: [
+      'CONTENT_READ_ALL', 'CONTENT_WRITE_ALL',
+      'BUDGET_READ_ALL', 'BUDGET_WRITE_ALL',
+      'INVITE_MANAGE', 'CHANNEL_CREATE', 'CHANNEL_MANAGE_ALL',
+    ],
+  })
+  const readOnlyBoard = makeActor({ id: 'denetim', permissions: ['CONTENT_READ_ALL'] })
+
+  it('CONTENT_READ_ALL, üye olmadığı PRIVATE kanalın içeriğini açar', () => {
+    expect(can(boardMember, 'content:read', privateContent)).toBe(true)
+    expect(can(outsider, 'content:read', privateContent)).toBe(false)
+  })
+
+  it('CONTENT_READ_ALL tek başına yazma vermez', () => {
+    expect(can(readOnlyBoard, 'content:write', privateContent)).toBe(false)
+    expect(can(boardMember, 'content:write', privateContent)).toBe(true)
+  })
+
+  it('CONTENT_READ_ALL, PRIVATE kanalın kendisini de görünür kılar', () => {
+    expect(can(readOnlyBoard, 'channel:read', privateChannel)).toBe(true)
+  })
+
+  it('BUDGET_READ_ALL, LEAD olmadan bütçeyi açar', () => {
+    const budget: Resource = {
+      kind: 'budget', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
+    }
+    expect(can(readOnlyBoard, 'budget:read', budget)).toBe(false)
+    expect(can(boardMember, 'budget:read', budget)).toBe(true)
+    expect(can(lead, 'budget:read', budget)).toBe(true)
+    expect(can(member, 'budget:read', budget)).toBe(false)
+  })
+
+  it('BUDGET_WRITE_ALL olmadan bütçe yazılamaz, arşivli kanalda hiç yazılamaz', () => {
+    const budget: Resource = {
+      kind: 'budget', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
+    }
+    const archived: Resource = { ...budget, channelArchivedAt: new Date() }
+    expect(can(boardMember, 'budget:write', budget)).toBe(true)
+    expect(can(readOnlyBoard, 'budget:write', budget)).toBe(false)
+    expect(can(lead, 'budget:write', budget)).toBe(false)
+    expect(can(boardMember, 'budget:write', archived)).toBe(false)
+  })
+
+  it('INVITE_MANAGE daveti açar, taşımayan role kapalıdır', () => {
+    expect(can(boardMember, 'invite:create', { kind: 'invite' })).toBe(true)
+    expect(can(readOnlyBoard, 'invite:create', { kind: 'invite' })).toBe(false)
+  })
+
+  it('CHANNEL_MANAGE_ALL, üye olmadığı kanalın ayarlarını açar', () => {
+    expect(can(boardMember, 'channel:manageMembers', privateChannel)).toBe(true)
+    expect(can(readOnlyBoard, 'channel:manageMembers', privateChannel)).toBe(false)
+  })
+
+  it('CONTENT_WRITE_ALL, üye olmadığı kanalın dokümanını düzenletir', () => {
+    const channelDoc: Resource = {
+      kind: 'document', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
+      documentVisibility: 'CHANNEL', ownerId: 'member',
+    }
+    expect(can(boardMember, 'document:write', channelDoc)).toBe(true)
+    expect(can(readOnlyBoard, 'document:write', channelDoc)).toBe(false)
+    expect(can(readOnlyBoard, 'document:read', channelDoc)).toBe(true)
+  })
+
+  it('pasif aktör izin taşısa da hiçbir şey yapamaz', () => {
+    const passive = makeActor({ ...boardMember, isActive: false })
+    expect(can(passive, 'content:read', privateContent)).toBe(false)
+    expect(can(passive, 'budget:read', {
+      kind: 'budget', channelId: 'c1', channelVisibility: 'PRIVATE', channelArchivedAt: null,
+    })).toBe(false)
+  })
+})

@@ -118,25 +118,29 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
   switch (action) {
     case 'channel:create':
       return resource.kind === 'channel:new' &&
-        (isAdmin(actor) || actor.memberships.some((m) => m.channelRole === 'LEAD'))
+        (has(actor, 'CHANNEL_CREATE') ||
+          actor.memberships.some((m) => m.channelRole === 'LEAD'))
 
     case 'channel:read':
       if (resource.kind !== 'channel') return false
-      return resource.visibility === 'OPEN' || isAdmin(actor) || !!membership(actor, resource.id)
+      return resource.visibility === 'OPEN' ||
+        has(actor, 'CONTENT_READ_ALL') ||
+        !!membership(actor, resource.id)
 
     case 'channel:update':
     case 'channel:manageMembers': {
       if (resource.kind !== 'channel' || resource.archivedAt) return false
-      return isAdmin(actor) || membership(actor, resource.id)?.channelRole === 'LEAD'
+      return has(actor, 'CHANNEL_MANAGE_ALL') ||
+        membership(actor, resource.id)?.channelRole === 'LEAD'
     }
 
     case 'channel:archive':
-      return resource.kind === 'channel' && isAdmin(actor)
+      return resource.kind === 'channel' && has(actor, 'CHANNEL_MANAGE_ALL')
 
     case 'content:read': {
       if (resource.kind !== 'content') return false
       return resource.channelVisibility === 'OPEN' ||
-        isAdmin(actor) ||
+        has(actor, 'CONTENT_READ_ALL') ||
         !!membership(actor, resource.channelId)
     }
 
@@ -144,7 +148,7 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
       if (resource.kind !== 'content') return false
       // Arşivlenmiş kanal salt-okunur: içeriği de kapsar.
       if (resource.channelArchivedAt) return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'CONTENT_WRITE_ALL')) return true
       if (membership(actor, resource.channelId)) return true
       // Atama, PRIVATE kanalda üyeliğin yerine geçmez. Geçseydi kişi
       // yazabildiği içeriği okuyamazdı.
@@ -155,7 +159,7 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
     case 'content:delete': {
       if (resource.kind !== 'content') return false
       if (resource.channelArchivedAt) return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'CONTENT_WRITE_ALL')) return true
       if (resource.ownerId === actor.id) return true
       return membership(actor, resource.channelId)?.channelRole === 'LEAD'
     }
@@ -163,7 +167,7 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
     case 'invite:create':
     case 'invite:revoke':
     case 'invite:list':
-      return resource.kind === 'invite' && isAdmin(actor)
+      return resource.kind === 'invite' && has(actor, 'INVITE_MANAGE')
 
     case 'member:list':
       return resource.kind === 'member'
@@ -183,27 +187,27 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
 
     case 'document:create':
       if (resource.kind !== 'document:new') return false
-      if (resource.channelVisibility === 'PRIVATE' && !isAdmin(actor)) {
+      if (resource.channelVisibility === 'PRIVATE' && !has(actor, 'CONTENT_WRITE_ALL')) {
         return !!membership(actor, resource.channelId)
       }
-      return isAdmin(actor) || !!membership(actor, resource.channelId)
+      return has(actor, 'CONTENT_WRITE_ALL') || !!membership(actor, resource.channelId)
 
     case 'document:read': {
       if (resource.kind !== 'document') return false
       if (resource.channelArchivedAt) return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'CONTENT_READ_ALL')) return true
       if (resource.documentVisibility === 'PUBLIC') return true
       if (resource.documentVisibility === 'CHANNEL') {
         return !!membership(actor, resource.channelId)
       }
-      // PRIVATE: sahip + paylaşılan + admin
+      // PRIVATE: sahip + paylaşılan
       return resource.ownerId === actor.id || !!resource.shared
     }
 
     case 'document:write': {
       if (resource.kind !== 'document') return false
       if (resource.channelArchivedAt) return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'CONTENT_WRITE_ALL')) return true
       if (resource.ownerId === actor.id) return true
       if (!!resource.sharedEdit) return true
       // CHANNEL/OPEN üyeler kanal içinde yazar; PRIVATE dokümanda kanal üyeliği
@@ -213,29 +217,24 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
     }
 
     case 'document:share':
-      if (resource.kind !== 'document') return false
-      if (isAdmin(actor)) return true
-      if (resource.ownerId === actor.id) return true
-      return membership(actor, resource.channelId)?.channelRole === 'LEAD'
-
     case 'document:delete':
       if (resource.kind !== 'document') return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'CONTENT_WRITE_ALL')) return true
       if (resource.ownerId === actor.id) return true
       return membership(actor, resource.channelId)?.channelRole === 'LEAD'
 
     // Para kalemleri içerikten daha kapalı: kanal üyeliği yetmez.
     case 'budget:read':
       if (resource.kind !== 'budget') return false
-      if (isAdmin(actor)) return true
+      if (has(actor, 'BUDGET_READ_ALL')) return true
       return membership(actor, resource.channelId)?.channelRole === 'LEAD'
 
     case 'budget:write':
-      // Yazma yalnızca admin'de. LEAD bütçeyi görür, değiştiremez —
-      // kulübün parasal kaydını tek elde tutmak bilinçli bir karar.
+      // LEAD bütçeyi görür, değiştiremez — kulübün parasal kaydını dar
+      // tutmak bilinçli bir karar.
       if (resource.kind !== 'budget') return false
       if (resource.channelArchivedAt) return false
-      return isAdmin(actor)
+      return has(actor, 'BUDGET_WRITE_ALL')
 
     default: {
       const exhaustive: never = action
