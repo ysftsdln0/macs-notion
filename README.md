@@ -82,6 +82,14 @@ Docker (yalnızca yerel Postgres için).
    Konsola bir kerelik bir davet linki basılır; onu açıp Google ile giriş
    yaparsan kurucu admin olursun.
 
+### Prisma CLI ve `.env.local`
+
+Prisma CLI kendi başına yalnızca `.env`'i okur, bu depo ise yerel sırları
+`.env.local`da tutar; bu yüzden `pnpm db:migrate` / `db:reset` / `db:seed`
+"Environment variable not found: DATABASE_URL" ile duruyordu. `prisma.config.ts`
+bu dosyaları (önce `.env.local`, sonra `.env`) elle yükler — yeni bir Prisma
+komutu eklerken ayrıca bir şey yapmak gerekmez.
+
 ### Migration üretirken dikkat: tsvector kolonları
 
 `Document`, `Task`, `Event` ve `Sponsor` tablolarındaki `searchVector`
@@ -132,10 +140,18 @@ start:standalone` ile ayağa kaldırıp 3100 portunda test eder — bu portu
 `pnpm dev` zaten tutuyorsa önce onu durdur.
 
 Entegrasyon ve E2E testleri paylaşılan yerel Postgres'i (`compose.dev.yml`,
-port 5433) kullanır ve tabloları her testten önce temizler; bu yüzden
-`vitest.config.ts`'de `fileParallelism: false` bilinçli olarak kapalıdır
-(dosyalar arası paralel çalışma, paylaşılan tabloların sıfırlanmasını
-birbiriyle yarıştırırdı).
+port 5433) kullanır. Vitest tarafı tabloları her testten önce temizler
+(`tests/helpers/reset-db.ts`); bu yüzden `vitest.config.ts`'de
+`fileParallelism: false` bilinçli olarak kapalıdır (dosyalar arası paralel
+çalışma, paylaşılan tabloların sıfırlanmasını birbiriyle yarıştırırdı).
+
+**E2E tarafı temizlemez:** her spec kendi damgalı (`stamp`) kaydını
+oluşturur ve veri koşular boyunca birikir. Bu yüzden spec'ler asla "sayfada
+tek bir kayıt var" varsayamaz — ör. görev panosu testi panoyu kendi kanalına
+filtreli açar, yoksa biriken kartlar sütunu ekran dışına taşırıp sürükleme
+hedefini erişilemez kılıyordu. Biriken veriyi temizlemek için
+`pnpm db:reset` (yerel geliştirme veritabanını tamamen siler, sonra
+`pnpm db:seed`).
 
 ---
 

@@ -1,9 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { PrismaClient } from '@prisma/client'
 import { signInAs } from './helpers/session'
 
 const db = new PrismaClient()
+
+/**
+ * ⌘K dinleyicisi hidrasyondan SONRA bağlanır; sayfa yüklendiği anda
+ * basılan tuş sessizce kaybolur (ve testi kararsız yapar). Tuş, palet
+ * açılana kadar tekrar denenir.
+ */
+async function openPalette(page: Page) {
+  await expect(async () => {
+    await page.keyboard.press('ControlOrMeta+k')
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
+}
 
 test('⌘K paleti kullanıcının görebildiği içeriği bulur, göremediğini göstermez', async ({
   page, context,
@@ -41,9 +53,8 @@ test('⌘K paleti kullanıcının görebildiği içeriği bulur, göremediğini 
   await signInAs(context, owner.id)
   await page.goto('/')
 
-  await page.keyboard.press('ControlOrMeta+k')
+  await openPalette(page)
   const palette = page.getByRole('dialog')
-  await expect(palette).toBeVisible()
   // Sorgu yokken kısayollar görünür.
   await expect(palette.getByRole('button', { name: 'Yeni görev' })).toBeVisible()
 
@@ -58,7 +69,7 @@ test('⌘K paleti kullanıcının görebildiği içeriği bulur, göremediğini 
   // getirmemeli; OPEN kanaldaki etkinlik ise herkese açık.
   await signInAs(context, stranger.id)
   await page.goto('/')
-  await page.keyboard.press('ControlOrMeta+k')
+  await openPalette(page)
   const strangerPalette = page.getByRole('dialog')
   await strangerPalette.getByLabel('Ara').fill(word)
   await expect(strangerPalette.getByRole('button', { name: `${word} etkinliği` })).toBeVisible()
