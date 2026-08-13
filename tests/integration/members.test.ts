@@ -234,6 +234,30 @@ describe('updateMemberRole', () => {
     expect(updated.globalRole).toBe('MEMBER')
   })
 
+  // Kalıntı defekt: guard eskiden yalnızca globalRole === 'MEMBER' hedefinde
+  // tetikleniyordu — iki değerli dünyada (ADMIN/MEMBER) tek düşürme yolu
+  // buydu, üçüncü kademe onu yanlışlamış: SUPERADMIN'den ADMIN'e düşürmek de
+  // havuzdan çıkarır ama kontrolsüz geçiyordu. Devir teslim senaryosu
+  // ("bir SUPERADMIN diğerini düşürebilir") tam olarak bu yolu kullanıyor,
+  // bu yüzden sessiz kalması özellikle tehlikeli.
+  it('sistemde tek superadmin varsa kendisi ADMIN\'e düşürülemez', async () => {
+    actorRef.current = superadmin.id
+    const r = await updateMemberRole({ userId: superadmin.id, globalRole: 'ADMIN' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('CONFLICT')
+    const unchanged = await db.user.findUniqueOrThrow({ where: { id: superadmin.id } })
+    expect(unchanged.globalRole).toBe('SUPERADMIN')
+  })
+
+  it('ikinci superadmin varken biri ADMIN\'e düşürülebilir', async () => {
+    const secondSuperadmin = await db.user.create({ data: { name: 'İkinci Süper', globalRole: 'SUPERADMIN' } })
+    actorRef.current = superadmin.id
+    const r = await updateMemberRole({ userId: secondSuperadmin.id, globalRole: 'ADMIN' })
+    expect(r.ok).toBe(true)
+    const updated = await db.user.findUniqueOrThrow({ where: { id: secondSuperadmin.id } })
+    expect(updated.globalRole).toBe('ADMIN')
+  })
+
   it('pasif superadmin sayılmaz: tek aktif superadmin kalıyorsa düşürme reddedilir', async () => {
     await db.user.create({ data: { name: 'Pasif Süper', globalRole: 'SUPERADMIN', isActive: false } })
     actorRef.current = superadmin.id

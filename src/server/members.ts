@@ -170,7 +170,17 @@ export const updateMemberRole = defineAction({
   handler: async ({ actor, input }) => {
     await runAdminGuardedChange(async (tx) => {
       const target = await assertMemberExists(tx, input.userId)
-      if (input.globalRole === 'MEMBER') {
+      // Herhangi bir SUPERADMIN dışı hedef, üyeyi havuzdan çıkarır — yalnızca
+      // MEMBER değil. İki değerli enum'da (ADMIN/MEMBER) MEMBER tek düşürme
+      // yoluydu; üçüncü kademeyle SUPERADMIN'den ADMIN'e düşürmek de aynı
+      // şekilde havuzdan çıkarır ama bu kontrolsüz kalıyordu (devir teslim
+      // senaryosu — "bir SUPERADMIN diğerini düşürebilir" — tam olarak bu
+      // yolu kullanıyor). `!== 'SUPERADMIN'` demek `=== 'SUPERADMIN'` hariç
+      // her şey demek; assertActiveSuperadminSurvivesWithout zaten yalnızca
+      // hedef aktif bir SUPERADMIN'se bir şey yapar, o yüzden koşulsuz
+      // çağırmak SUPERADMIN → SUPERADMIN'i (kimseyi çıkarmayan no-op'u)
+      // yanlışlıkla reddetmez.
+      if (input.globalRole !== 'SUPERADMIN') {
         await assertActiveSuperadminSurvivesWithout(tx, target)
       }
       await tx.user.update({ where: { id: input.userId }, data: { globalRole: input.globalRole } })
