@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { PrismaClient } from '../generated/prisma/client.js'
 import { signCollabToken } from '../../src/lib/auth/collab-token.ts'
 import { authorizeDocument } from '../src/authorize-document.ts'
+import { resolveActor } from '../src/auth.ts'
 import { resetCollabDb } from './helpers/reset-db.ts'
 
 const db = new PrismaClient()
@@ -90,5 +91,39 @@ describe('authorizeDocument', () => {
     })
     const r = await authorizeDocument(token, doc.id)
     expect(r).toEqual({ ok: false, reason: 'document' })
+  })
+})
+
+describe('rol izinleri collab tarafında', () => {
+  // NOT: Task 2 kapsamı bilinçli olarak can()'e dokunmuyor (bkz. Task 3) —
+  // bu yüzden burada authorizeDocument yerine resolveActor doğrudan
+  // doğrulanıyor. CONTENT_WRITE_ALL taşımak bugün document:write kararını
+  // henüz DEĞİŞTİRMİYOR (can() permissions'a hiç bakmıyor); can()'in
+  // rolleri de dinlemesi Task 3'ün işi. Burada kanıtlanan tek şey,
+  // resolveActor'ün rolleri gerçekten yükleyip actor.permissions'a
+  // taşıdığı — Task 3 zamanı geldiğinde can() bu alanı okumaya başlayınca
+  // otomatik olarak doğru sonucu üretecek.
+  it('CONTENT_WRITE_ALL taşıyan rolün izni resolveActor ile actor.permissions\'a taşınır', async () => {
+    const role = await db.role.create({
+      data: {
+        name: 'Yönetim Kurulu', slug: 'yonetim-kurulu', position: 1,
+        permissions: ['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'],
+      },
+    })
+    await db.userRole.create({ data: { userId: outsider.id, roleId: role.id } })
+
+    const actor = await resolveActor(makeToken(outsider.id))
+
+    expect(actor?.permissions.slice().sort()).toEqual(['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'])
+  })
+
+  it('rolsüz yabancı aynı dokümana bağlanamaz', async () => {
+    const doc = await db.document.create({
+      data: { title: 'Not', channelId, createdById: owner.id },
+    })
+
+    const r = await authorizeDocument(makeToken(outsider.id), doc.id)
+
+    expect(r).not.toEqual({ ok: true, actorId: outsider.id })
   })
 })

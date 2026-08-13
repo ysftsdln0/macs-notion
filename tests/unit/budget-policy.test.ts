@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { can, type Actor } from '@/lib/auth/policy'
+import { makeActor } from '../helpers/make-actor'
 
-const admin: Actor = { id: 'a', globalRole: 'ADMIN', isActive: true, memberships: [] }
-const lead: Actor = {
-  id: 'l', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
-}
-const member: Actor = {
-  id: 'm', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
-}
-const outsider: Actor = { id: 'o', globalRole: 'MEMBER', isActive: true, memberships: [] }
+const admin = makeActor({ id: 'a', globalRole: 'ADMIN' })
+const lead = makeActor({
+  id: 'l', memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
+})
+const member = makeActor({
+  id: 'm', memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
+})
+const outsider = makeActor({ id: 'o' })
 
 const budget = {
   kind: 'budget' as const,
@@ -31,10 +30,9 @@ describe('can() — bütçe', () => {
   })
 
   it('başka kanalın LEAD\'i bu kanalın bütçesini göremez', () => {
-    const otherLead: Actor = {
-      id: 'x', globalRole: 'MEMBER', isActive: true,
-      memberships: [{ channelId: 'c2', channelRole: 'LEAD' }],
-    }
+    const otherLead = makeActor({
+      id: 'x', memberships: [{ channelId: 'c2', channelRole: 'LEAD' }],
+    })
     expect(can(otherLead, 'budget:read', budget)).toBe(false)
   })
 

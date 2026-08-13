@@ -3,11 +3,27 @@ export type ChannelRole = 'LEAD' | 'MEMBER'
 export type Visibility = 'OPEN' | 'PRIVATE'
 export type DocumentVisibility = 'PUBLIC' | 'CHANNEL' | 'PRIVATE'
 
+export type Permission =
+  | 'CONTENT_READ_ALL'
+  | 'CONTENT_WRITE_ALL'
+  | 'BUDGET_READ_ALL'
+  | 'BUDGET_WRITE_ALL'
+  | 'MEMBER_MANAGE'
+  | 'INVITE_MANAGE'
+  | 'CHANNEL_CREATE'
+  | 'CHANNEL_MANAGE_ALL'
+  | 'TRASH_MANAGE'
+
 export type Actor = {
   id: string
   globalRole: GlobalRole
   isActive: boolean
   memberships: { channelId: string; channelRole: ChannelRole }[]
+  // ZORUNLU alan, opsiyonel değil. collab/src/auth.ts kendi aktörünü ayrı
+  // kuruyor; alan opsiyonel olsaydı orası sessizce "hiç izni yok" ile
+  // çalışırdı — YK üyesi dokümanı uygulamada açar, collab bağlantısı
+  // reddedilirdi. Zorunluluk, tsc'yi her kurulum noktasında hataya düşürür.
+  permissions: Permission[]
 }
 
 export type Action =
@@ -70,7 +86,29 @@ function membership(actor: Actor, channelId: string) {
 }
 
 function isAdmin(actor: Actor) {
-  return actor.globalRole === 'ADMIN'
+  // SUPERADMIN, ADMIN'in yapabildiği her şeyi yapar.
+  return actor.globalRole !== 'MEMBER'
+}
+
+/**
+ * İzin sorgusunun tek kapısı. ADMIN ve SUPERADMIN'in "her izne sahip olması"
+ * yalnızca burada yazılıdır; çağıranlar ayrıca globalRole kontrol etmez.
+ */
+export function has(actor: Actor, permission: Permission): boolean {
+  if (!actor.isActive) return false
+  if (isAdmin(actor)) return true
+  return actor.permissions.includes(permission)
+}
+
+/**
+ * Kullanıcının rollerinin izinlerini tekrarsız tek bir listeye indirger.
+ * Üç ayrı yerde aktör kurulduğu için (session.ts, collab/src/auth.ts,
+ * entity-access.ts) burada, saf bir fonksiyon olarak durur.
+ */
+export function flattenPermissions(
+  roles: { role: { permissions: Permission[] } }[],
+): Permission[] {
+  return [...new Set(roles.flatMap((assignment) => assignment.role.permissions))]
 }
 
 export function can(actor: Actor, action: Action, resource: Resource): boolean {

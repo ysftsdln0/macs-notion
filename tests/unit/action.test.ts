@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { actionError, defineAction } from '@/lib/action'
 import type { Actor } from '@/lib/auth/policy'
 
-const actor: Actor = { id: 'u1', globalRole: 'MEMBER', isActive: true, memberships: [] }
+const actor: Actor = { id: 'u1', globalRole: 'MEMBER', isActive: true, memberships: [], permissions: [] }
 const schema = z.object({ name: z.string().min(1, 'Ad zorunlu.') })
 
 type Overrides = {

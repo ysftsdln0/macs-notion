@@ -1,23 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { type Actor, type Resource, can } from '@/lib/auth/policy'
+import { type Resource, can } from '@/lib/auth/policy'
+import { makeActor } from '../helpers/make-actor'
 
-const admin: Actor = {
-  id: 'admin', globalRole: 'ADMIN', isActive: true,
-  memberships: [],
-}
-const lead: Actor = {
-  id: 'lead', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
-}
-const member: Actor = {
-  id: 'member', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
-}
-const outsider: Actor = {
-  id: 'outsider', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c2', channelRole: 'MEMBER' }],
-}
-const inactive: Actor = { ...member, id: 'inactive', isActive: false }
+const admin = makeActor({ id: 'admin', globalRole: 'ADMIN' })
+const lead = makeActor({
+  id: 'lead', memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
+})
+const member = makeActor({
+  id: 'member', memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
+})
+const outsider = makeActor({
+  id: 'outsider', memberships: [{ channelId: 'c2', channelRole: 'MEMBER' }],
+})
+const inactive = makeActor({ ...member, id: 'inactive', isActive: false })
 
 const openChannel: Resource = {
   kind: 'channel', id: 'c1', visibility: 'OPEN', archivedAt: null,

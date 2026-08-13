@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type Actor, can } from '@/lib/auth/policy'
+import { can } from '@/lib/auth/policy'
+import { makeActor } from '../helpers/make-actor'
 
-const admin: Actor = { id: 'a', globalRole: 'ADMIN', isActive: true, memberships: [] }
-const member: Actor = {
-  id: 'm', globalRole: 'MEMBER', isActive: true,
-  memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
-}
-const outsider: Actor = { id: 'o', globalRole: 'MEMBER', isActive: true, memberships: [] }
+const admin = makeActor({ id: 'a', globalRole: 'ADMIN' })
+const member = makeActor({
+  id: 'm', memberships: [{ channelId: 'c1', channelRole: 'MEMBER' }],
+})
+const outsider = makeActor({ id: 'o' })
 
 const base = {
   kind: 'document' as const,
@@ -47,10 +47,9 @@ describe('can() — doküman', () => {
   })
 
   it('paylaşımı sahip, kanal LEAD ve admin yönetir', () => {
-    const lead: Actor = {
-      id: 'l', globalRole: 'MEMBER', isActive: true,
-      memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
-    }
+    const lead = makeActor({
+      id: 'l', memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
+    })
     const leadNotOwner = { ...base, ownerId: 'someone-else' }
     expect(can(admin, 'document:share', base)).toBe(true)
     expect(can(lead, 'document:share', leadNotOwner)).toBe(true)
@@ -60,10 +59,9 @@ describe('can() — doküman', () => {
 
   it('silmeyi sahip, LEAD ve admin yapar; arşivli kanalda yazılamaz', () => {
     expect(can(member, 'document:delete', base)).toBe(true)
-    const lead: Actor = {
-      id: 'l', globalRole: 'MEMBER', isActive: true,
-      memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
-    }
+    const lead = makeActor({
+      id: 'l', memberships: [{ channelId: 'c1', channelRole: 'LEAD' }],
+    })
     expect(can(lead, 'document:delete', { ...base, ownerId: 'x' })).toBe(true)
     expect(can(outsider, 'document:delete', { ...base, ownerId: 'x' })).toBe(false)
     expect(can(member, 'document:write', { ...base, channelArchivedAt: new Date() })).toBe(false)
