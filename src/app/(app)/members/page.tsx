@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, has } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
 import { PageContainer, PageHeader } from '@/components/layout/page'
 import { MemberActions } from './member-actions'
@@ -17,7 +17,10 @@ export default async function MembersPage() {
     kind: 'member', id: actor.id, targetGlobalRole: actor.globalRole,
   })) notFound()
 
-  const isAdmin = actor.globalRole === 'ADMIN'
+  // Pasif üyeleri görmek ve üye işlemleri yapmak üye yönetimi yetkisidir;
+  // PRIVATE kanal adlarını görmek içerik okuma yetkisidir. Ayrı sorular.
+  const canManageMembers = has(actor, 'MEMBER_MANAGE')
+  const canSeeAllChannels = has(actor, 'CONTENT_READ_ALL')
 
   const members = await db.user.findMany({
     // Pasif üyeler daha önce bu sorgudan tamamen dışlanıyordu — bu, uygulama
@@ -26,7 +29,7 @@ export default async function MembersPage() {
     // kurtarma yolu VPS'te elle psql çalıştırmaktı). Admin artık pasif
     // üyeleri de görür ve etkinleştirebilir; düz üye hâlâ yalnızca aktif
     // üyeleri görür (pasif hesapların varlığı iş arkadaşlarına sızmaz).
-    where: isAdmin ? {} : { isActive: true },
+    where: canManageMembers ? {} : { isActive: true },
     orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     // Açık select: email ve diğer kişisel alanlar hiç çekilmez, sayfada
     // gösterilmeyen veri sorgu sonucunda da yer almaz.
@@ -61,7 +64,7 @@ export default async function MembersPage() {
   function visibleChannelNames(memberships: (typeof members)[number]['memberships']): string {
     return (
       memberships
-        .filter(({ channel }) => channel.visibility === 'OPEN' || isAdmin || viewerChannelIds.has(channel.id))
+        .filter(({ channel }) => channel.visibility === 'OPEN' || canSeeAllChannels || viewerChannelIds.has(channel.id))
         .map(({ channel }) => channel.name)
         .join(', ') || '-'
     )
@@ -80,8 +83,8 @@ export default async function MembersPage() {
               <th className="px-3 py-2">Ünvan</th>
               <th className="px-3 py-2">Rol</th>
               <th className="px-3 py-2">Kanallar</th>
-              {isAdmin && <th className="px-3 py-2">Durum</th>}
-              {isAdmin && <th className="px-3 py-2 text-right">İşlemler</th>}
+              {canManageMembers && <th className="px-3 py-2">Durum</th>}
+              {canManageMembers && <th className="px-3 py-2 text-right">İşlemler</th>}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -98,8 +101,8 @@ export default async function MembersPage() {
                 <td className="px-3 py-2 text-muted-foreground">
                   {visibleChannelNames(m.memberships)}
                 </td>
-                {isAdmin && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
-                {isAdmin && (
+                {canManageMembers && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
+                {canManageMembers && (
                   <td className="px-3 py-2 text-right">
                     {/* SUPERADMIN bu panelden düşürülemez/pasifleştirilemez —
                         rol düzenleyici ADMIN/MEMBER için tasarlandı, üçüncü

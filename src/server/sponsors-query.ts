@@ -5,7 +5,7 @@
 
 import type { Currency, Prisma, SponsorStatus } from '@prisma/client'
 import { db } from '@/lib/db'
-import { can, type Actor, type Visibility } from '@/lib/auth/policy'
+import { can, has, type Actor, type Visibility } from '@/lib/auth/policy'
 
 export type SponsorView = {
   id: string
@@ -51,7 +51,7 @@ function toView(row: SponsorRow): SponsorView {
 
 /** `can(actor, 'content:read', …)` dallarının sorgu karşılığı. */
 function readableChannelFilter(actor: Actor): Prisma.SponsorWhereInput {
-  if (actor.globalRole === 'ADMIN') return {}
+  if (has(actor, 'CONTENT_READ_ALL')) return {}
   return {
     OR: [
       { channel: { visibility: 'OPEN' } },

@@ -5,7 +5,7 @@
 
 import type { EventStatus, Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { can, type Actor, type Visibility } from '@/lib/auth/policy'
+import { can, has, type Actor, type Visibility } from '@/lib/auth/policy'
 
 export type EventView = {
   id: string
@@ -33,7 +33,7 @@ const eventSelect = {
 
 /** `can(actor, 'content:read', …)` dallarının sorgu karşılığı. */
 function readableChannelFilter(actor: Actor): Prisma.EventWhereInput {
-  if (actor.globalRole === 'ADMIN') return {}
+  if (has(actor, 'CONTENT_READ_ALL')) return {}
   return {
     OR: [
       { channel: { visibility: 'OPEN' } },

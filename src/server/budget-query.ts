@@ -5,7 +5,7 @@
 
 import { Prisma, type BudgetKind, type BudgetStatus, type Currency } from '@prisma/client'
 import { db } from '@/lib/db'
-import { can, type Actor, type Visibility } from '@/lib/auth/policy'
+import { can, has, type Actor, type Visibility } from '@/lib/auth/policy'
 
 export type BudgetEntryView = {
   id: string
@@ -67,12 +67,12 @@ async function loadReceiptNames(rows: EntryRow[]): Promise<Map<string, string>> 
 }
 
 /**
- * Bütçeyi görebildiği kanallar: admin hepsini, diğerleri yalnızca LEAD
- * olduklarını. `can(actor, 'budget:read', …)` dallarının sorgu karşılığı —
- * kanal üyeliği (MEMBER) yetmez.
+ * Bütçeyi görebildiği kanallar: BUDGET_READ_ALL taşıyan hepsini, diğerleri
+ * yalnızca LEAD olduklarını. `can(actor, 'budget:read', …)` dallarının sorgu
+ * karşılığı — kanal üyeliği (MEMBER) yetmez.
  */
 export function budgetChannelIds(actor: Actor): string[] | 'all' {
-  if (actor.globalRole === 'ADMIN') return 'all'
+  if (has(actor, 'BUDGET_READ_ALL')) return 'all'
   return actor.memberships.filter((m) => m.channelRole === 'LEAD').map((m) => m.channelId)
 }
 

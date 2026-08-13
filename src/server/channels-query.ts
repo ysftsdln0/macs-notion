@@ -12,6 +12,7 @@
 
 import { db } from '@/lib/db'
 import { getActor } from '@/lib/auth/session'
+import { has } from '@/lib/auth/policy'
 import type { Channel } from '@prisma/client'
 
 export async function listVisibleChannels(): Promise<Channel[]> {
@@ -22,7 +23,7 @@ export async function listVisibleChannels(): Promise<Channel[]> {
   return db.channel.findMany({
     where: {
       archivedAt: null,
-      ...(actor.globalRole === 'ADMIN'
+      ...(has(actor, 'CONTENT_READ_ALL')
         ? {}
         : { OR: [{ visibility: 'OPEN' }, { id: { in: memberChannelIds } }] }),
     },
