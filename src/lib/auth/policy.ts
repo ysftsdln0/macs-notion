@@ -42,6 +42,7 @@ export type Action =
   | 'member:updateRole'
   | 'member:deactivate'
   | 'member:reactivate'
+  | 'role:manage'
   | 'document:create'
   | 'document:read'
   | 'document:write'
@@ -62,7 +63,11 @@ export type Resource =
       assigneeIds?: string[]
     }
   | { kind: 'invite' }
-  | { kind: 'member'; id: string }
+  // targetGlobalRole ZORUNLU: hedefin kademesi bilinmeden "ADMIN,
+  // SUPERADMIN'e dokunamaz" kuralı yazılamaz. Opsiyonel olsaydı çağıranın
+  // unutması sessizce yetki açardı.
+  | { kind: 'member'; id: string; targetGlobalRole: GlobalRole }
+  | { kind: 'role' }
   | {
       kind: 'document'
       channelId: string
@@ -173,17 +178,32 @@ export function can(actor: Actor, action: Action, resource: Resource): boolean {
       return resource.kind === 'member'
 
     case 'member:updateRole':
-      return resource.kind === 'member' && isAdmin(actor)
+      // Kimin ADMIN olacağı hiçbir izne bağlanmaz.
+      return resource.kind === 'member' && actor.globalRole === 'SUPERADMIN'
 
-    case 'member:deactivate':
-      // Admin kendini pasife alamaz: sistemde admin kalmama riski.
-      return resource.kind === 'member' && isAdmin(actor) && resource.id !== actor.id
+    case 'member:deactivate': {
+      if (resource.kind !== 'member') return false
+      // Kimse kendini pasife alamaz: sistemde yetkili kalmama riski.
+      if (resource.id === actor.id) return false
+      if (actor.globalRole === 'SUPERADMIN') return true
+      // Sistem sahibine yalnızca sistem sahibi dokunur.
+      if (resource.targetGlobalRole === 'SUPERADMIN') return false
+      if (actor.globalRole === 'ADMIN') return true
+      return has(actor, 'MEMBER_MANAGE') && resource.targetGlobalRole === 'MEMBER'
+    }
 
-    case 'member:reactivate':
-      // Havuzu yalnızca büyütür, admin tavanı riske girmez — kendi kendini
-      // etkinleştirme senaryosu zaten pasif aktörün hiçbir yetkisi olmaması
-      // (bkz. dosya başındaki isActive kapısı) yüzünden erişilemez.
-      return resource.kind === 'member' && isAdmin(actor)
+    case 'member:reactivate': {
+      // Havuzu yalnızca büyütür — kendi kendini etkinleştirme senaryosu
+      // pasif aktörün hiçbir yetkisi olmaması yüzünden zaten erişilemez.
+      if (resource.kind !== 'member') return false
+      if (actor.globalRole === 'SUPERADMIN') return true
+      if (resource.targetGlobalRole === 'SUPERADMIN') return false
+      if (actor.globalRole === 'ADMIN') return true
+      return has(actor, 'MEMBER_MANAGE') && resource.targetGlobalRole === 'MEMBER'
+    }
+
+    case 'role:manage':
+      return resource.kind === 'role' && actor.globalRole === 'SUPERADMIN'
 
     case 'document:create':
       if (resource.kind !== 'document:new') return false

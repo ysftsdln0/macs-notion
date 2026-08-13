@@ -13,7 +13,9 @@ import { MemberActions } from './member-actions'
 export default async function MembersPage() {
   const actor = await requireActor()
   // Yetki kontrolü veriyi göstermeden önce (bkz. c/[slug]/page.tsx ile aynı desen).
-  if (!can(actor, 'member:list', { kind: 'member', id: actor.id })) notFound()
+  if (!can(actor, 'member:list', {
+    kind: 'member', id: actor.id, targetGlobalRole: actor.globalRole,
+  })) notFound()
 
   const isAdmin = actor.globalRole === 'ADMIN'
 
