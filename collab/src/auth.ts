@@ -5,7 +5,7 @@ const db = new PrismaClient()
 
 export type CollabActor = {
   id: string
-  globalRole: 'ADMIN' | 'MEMBER'
+  globalRole: 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
   isActive: boolean
   memberships: { channelId: string; channelRole: 'LEAD' | 'MEMBER' }[]
 }
