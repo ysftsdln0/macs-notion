@@ -102,6 +102,44 @@ describe('kayıt yolu — signIn + adapter.createUser + events.createUser (C1 + 
     expect(invite.usedAt).not.toBeNull()
   })
 
+  it('kayıtlı kullanıcı ikinci kez girebilir — davet çerezi olmadan da', async () => {
+    const founder = await db.user.create({ data: { name: 'Kurucu', globalRole: 'ADMIN' } })
+    const { token, tokenHash } = createInviteToken()
+    await db.invite.create({
+      data: { tokenHash, expiresAt: new Date(Date.now() + 7 * 864e5), createdById: founder.id },
+    })
+    cookieStore.set(INVITE_COOKIE, token)
+
+    const profile: AdapterUser = {
+      id: 'google-sub-2', name: 'Üye', email: 'ikinci-giris@x.com', emailVerified: null,
+    }
+    const account = {
+      provider: 'google', type: 'oidc' as const, providerAccountId: 'google-sub-2',
+      access_token: 'a', token_type: 'bearer' as const, scope: 'openid email profile',
+    }
+
+    // 1. giriş: @auth/core'un handle-login.js'te yaptığı sıra —
+    // createUser → events.createUser → linkAccount.
+    expect(await authConfig.callbacks?.signIn?.({ user: profile, account })).toBe(true)
+    const created = await adapter.createUser?.(profile)
+    if (!created) throw new Error('adapter.createUser tanımsız döndü')
+    await authConfig.events?.createUser?.({ user: created })
+    await adapter.linkAccount?.({ ...account, userId: created.id })
+
+    // 2. giriş: davet çerezi artık yok (onboarding sonunda siliniyor) ve
+    // @auth/core signIn callback'ine hesaptan çözülen kullanıcıyı geçiriyor.
+    cookieStore.clear()
+    const userByAccount = await adapter.getUserByAccount?.({
+      provider: 'google', providerAccountId: 'google-sub-2',
+    })
+    expect(userByAccount?.id).toBe(created.id)
+
+    const second = await authConfig.callbacks?.signIn?.({
+      user: userByAccount as AdapterUser, account,
+    })
+    expect(second).toBe(true)
+  })
+
   it('davet çerezi yoksa signIn reddeder ve hiçbir kullanıcı oluşmaz', async () => {
     const noInviteProfile: AdapterUser = {
       id: 'x', name: 'Kimliksiz', email: 'yok@x.com', emailVerified: null,

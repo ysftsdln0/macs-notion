@@ -139,19 +139,36 @@ EZMEZ, yalnızca eksikleri tamamlar.
 start:standalone` ile ayağa kaldırıp 3100 portunda test eder — bu portu
 `pnpm dev` zaten tutuyorsa önce onu durdur.
 
-Entegrasyon ve E2E testleri paylaşılan yerel Postgres'i (`compose.dev.yml`,
-port 5433) kullanır. Vitest tarafı tabloları her testten önce temizler
-(`tests/helpers/reset-db.ts`); bu yüzden `vitest.config.ts`'de
-`fileParallelism: false` bilinçli olarak kapalıdır (dosyalar arası paralel
-çalışma, paylaşılan tabloların sıfırlanmasını birbiriyle yarıştırırdı).
+**Testler AYRI bir veritabanı kullanır.** Aynı Postgres örneği
+(`compose.dev.yml`, port 5433) ama veritabanı adı `_test` ekiyle değişir:
+geliştirme `macs`, testler `macs_test`. Dönüşümü
+`tests/helpers/test-database-url.ts` yapar; vitest, collab vitest ve
+Playwright config'leri bunu çağırır, Playwright ayrıca `DATABASE_URL`i
+başlattığı web ve collab sunucularına açıkça geçirir. Şema
+`prisma migrate deploy` ile global setup'ta uygulanır — veritabanı yoksa
+oluşturulur, ekstra bir kurulum adımı yoktur.
+
+> Bu ayrım şart: `resetDb` her testten önce BÜTÜN tabloları boşaltıyor.
+> Test veritabanı ayrılmadan önce `pnpm test`, geliştirme veritabanındaki
+> gerçek hesabı da siliyordu (`User` → `Account`/`Session` cascade) ve
+> geliştirici bir sonraki girişte "hesabın devre dışı bırakılmış ya da
+> geçerli bir davet linkin yok" hatasını alıyordu — Auth.js, kullanıcı
+> satırı olmayan ve davet çerezi de taşımayan bir girişi `AccessDenied`
+> ile reddediyor.
+
+`vitest.config.ts`'de `fileParallelism: false` bilinçli olarak kapalıdır:
+dosyalar arası paralel çalışma, paylaşılan tabloların sıfırlanmasını
+birbiriyle yarıştırırdı.
+
+`resetDb` elle yazılmış bir silme SIRASI tutmaz; bütün tabloları tek bir
+ifadede (veri değiştiren CTE'ler) boşaltır, foreign key kontrolleri ifadenin
+sonunda yapılır. Yeni bir model eklerken orada yapılacak bir şey yoktur.
 
 **E2E tarafı temizlemez:** her spec kendi damgalı (`stamp`) kaydını
-oluşturur ve veri koşular boyunca birikir. Bu yüzden spec'ler asla "sayfada
-tek bir kayıt var" varsayamaz — ör. görev panosu testi panoyu kendi kanalına
-filtreli açar, yoksa biriken kartlar sütunu ekran dışına taşırıp sürükleme
-hedefini erişilemez kılıyordu. Biriken veriyi temizlemek için
-`pnpm db:reset` (yerel geliştirme veritabanını tamamen siler, sonra
-`pnpm db:seed`).
+oluşturur ve veri koşular boyunca `macs_test` içinde birikir. Bu yüzden
+spec'ler asla "sayfada tek bir kayıt var" varsayamaz — ör. görev panosu
+testi panoyu kendi kanalına filtreli açar, yoksa biriken kartlar sütunu
+ekran dışına taşırıp sürükleme hedefini erişilemez kılıyordu.
 
 ---
 

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
+import { applyTestDatabaseUrl } from './tests/helpers/test-database-url'
 
 // Next'in build/start için otomatik yüklediği .env.local, Playwright'ın KENDİ
 // test çalıştırıcısı süreci için yüklenmez — spec dosyaları (`tests/e2e/**`,
@@ -12,9 +13,20 @@ if (existsSync('.env.local')) {
   process.loadEnvFile('.env.local')
 }
 
+// E2E de geliştirme veritabanına DEĞİL, `<ad>_test` veritabanına yazar.
+// Spec'ler her koşuda yeni kayıtlar bırakıyor (temizlemiyorlar) ve bu
+// veritabanı `pnpm dev`inkiyle aynıydı: gerçek hesapların yanına test
+// çöpü birikiyordu. Gerekçenin tamamı `tests/helpers/test-database-url.ts`.
+// Sunuculara AÇIKÇA geçirilir — alt süreçler bu satırı değil, yalnızca
+// ortamı görür.
+const databaseUrl = applyTestDatabaseUrl()
+const serverEnv: Record<string, string> = databaseUrl ? { DATABASE_URL: databaseUrl } : {}
+
 export default defineConfig({
   testDir: 'tests/e2e',
   use: { baseURL: 'http://localhost:3100' },
+  // Şemayı test veritabanına uygular (yoksa veritabanını da oluşturur).
+  globalSetup: './tests/e2e/global-setup.ts',
   webServer: [{
     // Production `node server.js` (standalone çıktı, bkz. Dockerfile'ın
     // `run` hedefi) ile aynı giriş noktasını kullanır. `next.config.ts`
@@ -30,6 +42,7 @@ export default defineConfig({
     url: 'http://localhost:3100',
     reuseExistingServer: !process.env.CI,
     timeout: 300_000,
+    env: serverEnv,
   }, {
     // Canlı doküman düzenleme için Hocuspocus sunucusu. Web ile AYNI
     // AUTH_SECRET'ı görmeli — sayfa collab token'ını o sırla imzalar,
@@ -39,5 +52,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:1234',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    env: serverEnv,
   }],
 })

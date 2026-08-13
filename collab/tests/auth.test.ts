@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { PrismaClient } from '../generated/prisma/client.js'
 import { signCollabToken } from '../../src/lib/auth/collab-token.ts'
 import { authorizeDocument } from '../src/authorize-document.ts'
+import { resetCollabDb } from './helpers/reset-db.ts'
 
 const db = new PrismaClient()
 
@@ -18,14 +19,7 @@ let outsider: { id: string }
 let channelId: string
 
 beforeEach(async () => {
-  await db.docState.deleteMany()
-  await db.documentShare.deleteMany()
-  await db.document.deleteMany()
-  await db.session.deleteMany()
-  await db.activity.deleteMany()
-  await db.channelMember.deleteMany()
-  await db.channel.deleteMany()
-  await db.user.deleteMany()
+  await resetCollabDb(db)
 
   owner = await db.user.create({ data: { name: 'Sahip', onboardedAt: new Date() } })
   outsider = await db.user.create({ data: { name: 'Yabancı', onboardedAt: new Date() } })
