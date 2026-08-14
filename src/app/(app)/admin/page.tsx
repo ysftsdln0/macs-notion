@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
@@ -41,6 +42,20 @@ export default async function AdminPage() {
   return (
     <PageContainer className="space-y-8">
       <PageHeader title="Yönetim" />
+
+      {/* Rol yönetimi bir izin değil, SUPERADMIN kapısıdır — bölüm de aynı
+          kararı sorar, böylece görünen bağlantı 404'e gitmez. */}
+      {can(actor, 'role:manage', { kind: 'role' }) && (
+        <section className="space-y-2">
+          <SectionHeading>Roller</SectionHeading>
+          <p className="text-sm text-muted-foreground">
+            Kulüp geneli kademeler ve izinleri.{' '}
+            <Link className="underline" href="/admin/roles">
+              Rolleri yönet
+            </Link>
+          </p>
+        </section>
+      )}
 
       <section className="space-y-2">
         <SectionHeading>Kanallar</SectionHeading>
