@@ -37,7 +37,7 @@ type NavProps = {
   unreadCount: number
   canCreateChannel: boolean
   canSeeBudget: boolean
-  isAdmin: boolean
+  canSeeAdminPanel: boolean
 }
 
 const channelTints = [
@@ -182,7 +182,7 @@ function NavBody({
   unreadCount,
   canCreateChannel,
   canSeeBudget,
-  isAdmin,
+  canSeeAdminPanel,
 }: NavProps) {
   const pathname = usePathname()
   const { open, animate } = useSidebar()
@@ -301,7 +301,7 @@ function NavBody({
           </div>
         )}
 
-        {isAdmin && (
+        {canSeeAdminPanel && (
           <div className="space-y-0.5">
             <SectionLabel expanded={expanded} reserve>
               Yönetim

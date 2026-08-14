@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
+import { has } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 import { recordNotification } from '@/lib/notifications'
 import { findMentionedNames } from '@/lib/mentions'
@@ -98,8 +99,8 @@ export const deleteComment = defineAction({
   authorize: async ({ actor, input }) => {
     const comment = await db.comment.findUnique({ where: { id: input.id } })
     if (!comment || comment.deletedAt) return { allowed: false as const, code: 'NOT_FOUND' as const }
-    // Yazar kendi yorumunu siler; admin moderasyon için silebilir.
-    return { allowed: comment.authorId === actor.id || actor.globalRole === 'ADMIN' }
+    // Yazar kendi yorumunu siler; CONTENT_WRITE_ALL taşıyan moderasyon için silebilir.
+    return { allowed: comment.authorId === actor.id || has(actor, 'CONTENT_WRITE_ALL') }
   },
   handler: async ({ input }) => {
     // Soft delete: satır kalır, gövde arayüzde gizlenir. Yorum akışındaki

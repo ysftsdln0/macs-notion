@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, has } from '@/lib/auth/policy'
 import { loadDocumentContext } from '@/server/documents-query'
 import { listComments } from '@/server/comments-query'
 import { listUsersWithAccess } from '@/server/entity-access'
@@ -99,7 +99,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         entityId={context.doc.id}
         comments={comments}
         currentUserId={actor.id}
-        isAdmin={actor.globalRole === 'ADMIN'}
+        canModerate={has(actor, 'CONTENT_WRITE_ALL')}
         mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
       />
     </PageContainer>

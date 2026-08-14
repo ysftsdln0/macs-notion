@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, has } from '@/lib/auth/policy'
 import { loadEventContext } from '@/server/events-query'
 import { listTasks } from '@/server/tasks-query'
 import { listComments } from '@/server/comments-query'
@@ -183,7 +183,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         entityId={context.event.id}
         comments={comments}
         currentUserId={actor.id}
-        isAdmin={actor.globalRole === 'ADMIN'}
+        canModerate={has(actor, 'CONTENT_WRITE_ALL')}
         mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
       />
     </PageContainer>

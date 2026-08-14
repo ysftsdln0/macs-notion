@@ -184,7 +184,7 @@ export async function listArchivedDocuments(): Promise<
   (VisibleDocument & { archivedAt: Date | null })[]
 > {
   const actor = await getActor()
-  if (!actor || actor.globalRole !== 'ADMIN') return []
+  if (!actor || !has(actor, 'TRASH_MANAGE')) return []
   return db.document.findMany({
     where: { archivedAt: { not: null } },
     select: {

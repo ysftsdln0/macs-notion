@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, has } from '@/lib/auth/policy'
 import { loadSponsorContext } from '@/server/sponsors-query'
 import { listEvents } from '@/server/events-query'
 import { listComments } from '@/server/comments-query'
@@ -56,7 +56,7 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
         entityId={context.sponsor.id}
         comments={comments}
         currentUserId={actor.id}
-        isAdmin={actor.globalRole === 'ADMIN'}
+        canModerate={has(actor, 'CONTENT_WRITE_ALL')}
         mentionCandidates={mentionCandidates.filter((c) => c.id !== actor.id)}
       />
     </PageContainer>

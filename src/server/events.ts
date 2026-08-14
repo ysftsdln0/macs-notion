@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, has, type Actor } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 import { loadEventContext } from '@/server/events-query'
 
@@ -150,7 +150,7 @@ export const archiveEvent = defineAction({
 export const restoreEvent = defineAction({
   input: z.object({ id: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor }) => ({ allowed: actor.globalRole === 'ADMIN' }),
+  authorize: async ({ actor }) => ({ allowed: has(actor, 'TRASH_MANAGE') }),
   handler: async ({ actor, input }) => {
     const event = await db.event.findUnique({ where: { id: input.id } })
     if (!event) throw actionError('NOT_FOUND')

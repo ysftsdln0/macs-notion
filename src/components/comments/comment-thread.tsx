@@ -17,13 +17,13 @@ export type MentionCandidate = { id: string; name: string }
  * etkinlik ve sponsor sayfaları aynı bileşeni kullanır.
  */
 export function CommentThread({
-  entityType, entityId, comments, currentUserId, isAdmin, mentionCandidates,
+  entityType, entityId, comments, currentUserId, canModerate, mentionCandidates,
 }: {
   entityType: CommentableEntityType
   entityId: string
   comments: CommentView[]
   currentUserId: string
-  isAdmin: boolean
+  canModerate: boolean
   mentionCandidates: MentionCandidate[]
 }) {
   const router = useRouter()
@@ -140,7 +140,7 @@ export function CommentThread({
                 ) : (
                   <p className="mt-1 whitespace-pre-wrap">{comment.body}</p>
                 )}
-                {(mine || isAdmin) && editing?.id !== comment.id && (
+                {(mine || canModerate) && editing?.id !== comment.id && (
                   <div className="mt-2 flex gap-2">
                     {mine && (
                       <Button

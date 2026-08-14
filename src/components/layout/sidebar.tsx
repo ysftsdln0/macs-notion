@@ -1,4 +1,4 @@
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, has, type Actor } from '@/lib/auth/policy'
 import { listVisibleChannels } from '@/server/channels-query'
 import { countUnreadNotifications } from '@/server/notifications-query'
 import { budgetChannelIds } from '@/server/budget-query'
@@ -30,7 +30,7 @@ export async function Sidebar({ actor }: { actor: Actor }) {
       unreadCount={unreadCount}
       canCreateChannel={canCreateChannel}
       canSeeBudget={canSeeBudget}
-      isAdmin={actor.globalRole === 'ADMIN'}
+      canSeeAdminPanel={has(actor, 'INVITE_MANAGE')}
     />
   )
 }

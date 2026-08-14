@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, has, type Actor } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 import { recordNotification } from '@/lib/notifications'
 import { rankBetween, rebalanceRanks } from '@/lib/rank'
@@ -335,7 +335,7 @@ export const archiveTask = defineAction({
 export const restoreTask = defineAction({
   input: z.object({ id: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor }) => ({ allowed: actor.globalRole === 'ADMIN' }),
+  authorize: async ({ actor }) => ({ allowed: has(actor, 'TRASH_MANAGE') }),
   handler: async ({ actor, input }) => {
     const task = await db.task.findUnique({ where: { id: input.id } })
     if (!task) throw actionError('NOT_FOUND')
