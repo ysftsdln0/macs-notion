@@ -111,9 +111,9 @@ test('YK rolü yönetime özel kanalı açar, düz üye kanalı hiç göremez', 
     data: {
       name: `Yönetim Kurulu ${stamp}`,
       slug: `yonetim-kurulu-${stamp}`,
-      // position tekil kısıt taşıyor; Playwright worker'ları paralel koştuğu
-      // için zaman damgası değil rastgele sayı kullanılır.
-      position: Math.floor(Math.random() * 1_000_000_000),
+      // position tekil DEĞİL (bkz. src/server/roles.ts) — sabit bir değer
+      // güvenli, Playwright worker'ları paralel koşsa da çakışma riski yok.
+      position: 1,
       permissions: ['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'],
     },
   })

@@ -69,8 +69,15 @@ export const createRole = defineAction({
     try {
       role = await db.$transaction(
         async (tx) => {
-          // position tekil kısıt taşıyor: sayım ve yazım aynı transaction'da
-          // olmalı, yoksa iki eş zamanlı oluşturma aynı sayıyı alır.
+          // position ARTIK tekil kısıt taşımıyor (20260815143436_system_roles
+          // migration'ı düşürdü — sıralamayı değiştiren bir arayüz yok).
+          // Serializable yine de işe yarar: aynı transaction içinde "son
+          // pozisyonu oku, +1 yaz" sırasını PostgreSQL'in write-skew
+          // tespitine karşı korur. Ama artık bir garanti değil — bu koruma
+          // aşılırsa (iki transaction da commit ederse) sonuç, biri P2002
+          // ile reddedilmek yerine iki rolün aynı pozisyonu SESSİZCE
+          // paylaşmasıdır. `position` yalnızca rozet sırası olduğu için bu
+          // görsel bir tutarsızlıktır, veri bozulması değil.
           const last = await tx.role.findFirst({
             orderBy: { position: 'desc' },
             select: { position: true },

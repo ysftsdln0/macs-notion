@@ -10,11 +10,14 @@ import { describe, expect, it } from 'vitest'
  * belirtisi "editör eşitlenmiyor" oluyor — kimse bunu deploy'a bağlamaz.
  * Değişkenin adı değişirse ya da satır silinirse CI burada düşer.
  */
-describe('compose.yml', () => {
-  const compose = readFileSync('compose.yml', 'utf8')
+const compose = readFileSync('compose.yml', 'utf8')
+const caddyfile = readFileSync('Caddyfile', 'utf8')
 
+describe('compose.yml', () => {
   it('web servisine collab adresini geçirir', () => {
-    expect(compose).toMatch(/COLLAB_URL:\s*wss:\/\/\$\{DOMAIN\}\/collab/)
+    // `${DOMAIN...}` kısmı `[^}]*` ile eşlenir: DOMAIN çıplak (`${DOMAIN}`)
+    // ya da `:?...` guard'lı (`${DOMAIN:?mesaj}`) olabilir, ikisi de geçerli.
+    expect(compose).toMatch(/COLLAB_URL:\s*wss:\/\/\$\{DOMAIN[^}]*\}\/collab/)
   })
 
   it('istemciye gömülen eski NEXT_PUBLIC_ değişkenini kullanmaz', () => {
@@ -23,8 +26,6 @@ describe('compose.yml', () => {
 })
 
 describe('Caddyfile', () => {
-  const caddyfile = readFileSync('Caddyfile', 'utf8')
-
   /**
    * Hocuspocus provider bağlantı adresini `serverUrl` olarak kurar ve sondaki
    * eğik çizgiyi AKTİF OLARAK siler (hocuspocus-provider.cjs:1962-1967);
@@ -35,5 +36,19 @@ describe('Caddyfile', () => {
   it('çıplak /collab yolunu da eşler', () => {
     expect(caddyfile).toMatch(/handle_path\s+\/collab\*/)
     expect(caddyfile).not.toMatch(/handle_path\s+\/collab\/\*/)
+  })
+})
+
+describe('compose.yml ↔ Caddyfile', () => {
+  // Yukarıdaki iki describe her dosyayı AYRI doğruluyor; ikisi arasındaki
+  // BAĞI hiçbiri kontrol etmiyordu — biri `/collab` yolunu değiştirip
+  // diğerini unutursa iki test de sessizce geçerdi. compose'un COLLAB_URL'
+  // indeki yol parçasıyla Caddyfile'ın handle_path önekini doğrudan
+  // karşılaştırarak bu boşluğu kapatır.
+  it('COLLAB_URL yolu ile Caddyfile handle_path öneki aynı', () => {
+    const composePath = compose.match(/COLLAB_URL:\s*wss:\/\/\$\{DOMAIN[^}]*\}(\/[a-z]+)/)?.[1]
+    const caddyPath = caddyfile.match(/handle_path\s+(\/[a-z]+)\*/)?.[1]
+    expect(composePath).toBeDefined()
+    expect(composePath).toBe(caddyPath)
   })
 })
