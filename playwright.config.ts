@@ -20,7 +20,20 @@ if (existsSync('.env.local')) {
 // Sunuculara AÇIKÇA geçirilir — alt süreçler bu satırı değil, yalnızca
 // ortamı görür.
 const databaseUrl = applyTestDatabaseUrl()
-const serverEnv: Record<string, string> = databaseUrl ? { DATABASE_URL: databaseUrl } : {}
+// COLLAB_URL açıkça geçirilir VE collab, `constants.ts`'in varsayılanı olan
+// 1234'te DEĞİL 1235'te çalıştırılır.
+//
+// 1234'te bırakılsaydı bu satır hiçbir şeyi kilitlemezdi: satır silinse ya da
+// değişken adı değişse (ör. NEXT_PUBLIC_ önekine geri dönülse) uygulama
+// varsayılana düşer, varsayılan da tesadüfen collab'ın dinlediği adres olur ve
+// testler geçerdi. Bu branch tam olarak öyle bir "sessizce doğru sanılan
+// yapılandırma" yüzünden var. 1235 varsayılanla çakışmadığı için iki sekmeli
+// eşitleme testi ancak bu satır gerçekten okunuyorsa geçer.
+const serverEnv: Record<string, string> = {
+  ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+  PORT: '1235',
+  COLLAB_URL: 'ws://127.0.0.1:1235',
+}
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -49,7 +62,8 @@ export default defineConfig({
     // burası doğrular. Hocuspocus HTTP kökünde 200 döndüğü için Playwright
     // hazır olma kontrolünü normal bir url ile yapabiliyor.
     command: 'pnpm --filter macs-collab start',
-    url: 'http://127.0.0.1:1234',
+    // 1235: `serverEnv`'deki PORT'tan gelir, gerekçesi orada yazılı.
+    url: 'http://127.0.0.1:1235',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     env: serverEnv,

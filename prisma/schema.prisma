@@ -497,8 +497,10 @@ model Role {
   permissions Permission[]
   isSystem    Boolean      @default(false)
   // Yalnızca rozet sıralaması için. Yetki hiyerarşisi DEĞİL — rol
-  // düzenleyebilen tek aktör (SUPERADMIN) zaten her izne sahip.
-  position    Int          @unique
+  // düzenleyebilen tek aktör (SUPERADMIN) zaten her izne sahip. Unique
+  // DEĞİL: sabit pozisyonlu sistem rolü eklemeyi engelliyor ve sıralamayı
+  // değiştiren bir arayüz olmadığı için hiçbir şey korumuyordu.
+  position    Int
   createdAt   DateTime     @default(now())
 
   members UserRole[]
