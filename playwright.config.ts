@@ -20,7 +20,14 @@ if (existsSync('.env.local')) {
 // Sunuculara AÇIKÇA geçirilir — alt süreçler bu satırı değil, yalnızca
 // ortamı görür.
 const databaseUrl = applyTestDatabaseUrl()
-const serverEnv: Record<string, string> = databaseUrl ? { DATABASE_URL: databaseUrl } : {}
+// COLLAB_URL açıkça geçirilir: `constants.ts` varsayılanı zaten aynı adres
+// olduğu için testler bunsuz da geçerdi, ama o zaman e2e "adres doğru
+// yapılandırılmış mı" sorusunu hiç sormamış olurdu. Açık geçmek, değişken
+// adı değişirse testlerin de değişmesini zorunlu kılar.
+const serverEnv: Record<string, string> = {
+  ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+  COLLAB_URL: 'ws://127.0.0.1:1234',
+}
 
 export default defineConfig({
   testDir: 'tests/e2e',
