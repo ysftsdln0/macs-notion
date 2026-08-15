@@ -8,11 +8,15 @@ async function resolveMockedActor() {
   if (!actorRef.current) return null
   const user = await db.user.findUniqueOrThrow({
     where: { id: actorRef.current.id },
-    include: { memberships: true },
+    include: {
+      memberships: true,
+      roles: { select: { role: { select: { permissions: true } } } },
+    },
   })
   return {
     id: user.id, globalRole: user.globalRole, isActive: user.isActive,
     memberships: user.memberships.map((m) => ({ channelId: m.channelId, channelRole: m.channelRole })),
+    permissions: [...new Set(user.roles.flatMap((r) => r.role.permissions))],
   }
 }
 

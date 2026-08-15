@@ -31,7 +31,10 @@ describe('toActor', () => {
 
     const loaded = await db.user.findUniqueOrThrow({
       where: { id: user.id },
-      include: { memberships: true },
+      include: {
+        memberships: true,
+        roles: { select: { role: { select: { permissions: true } } } },
+      },
     })
 
     expect(toActor(loaded)).toEqual({
@@ -39,6 +42,7 @@ describe('toActor', () => {
       globalRole: 'ADMIN',
       isActive: true,
       memberships: [{ channelId: channel.id, channelRole: 'LEAD' }],
+      permissions: [],
     })
   })
 })

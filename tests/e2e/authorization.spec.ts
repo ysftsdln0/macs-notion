@@ -90,3 +90,64 @@ test("düz üye için /admin 404 döner (gövde değil, durum kodu regresyonu)",
   expect(body).not.toContain('Yönetim')
   expect(body).not.toContain('Yeni davet')
 })
+
+/**
+ * Bu takımın en kritik testi. Rol sisteminde başka her şey yanlışsa fazla
+ * yetki verilir; bu yanlışsa gizli içerik sızar.
+ *
+ * "Yönetime özel kanal" ayrı bir mekanizma değildir: YK rolü CONTENT_READ_ALL
+ * taşıdığı için PRIVATE bir kanal ona kendiliğinden açılır, kanala üye
+ * eklenmesine gerek kalmaz. Düz üyeye ise kanal hiç var olmamış gibi görünür.
+ */
+test('YK rolü yönetime özel kanalı açar, düz üye kanalı hiç göremez', async ({ page, context, browser }) => {
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
+  const owner = await db.user.create({
+    data: {
+      name: 'Sahip', email: `s-${stamp}@x.com`,
+      globalRole: 'SUPERADMIN', onboardedAt: new Date(),
+    },
+  })
+  const role = await db.role.create({
+    data: {
+      name: `Yönetim Kurulu ${stamp}`,
+      slug: `yonetim-kurulu-${stamp}`,
+      // position tekil kısıt taşıyor; Playwright worker'ları paralel koştuğu
+      // için zaman damgası değil rastgele sayı kullanılır.
+      position: Math.floor(Math.random() * 1_000_000_000),
+      permissions: ['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'],
+    },
+  })
+  const boardMember = await db.user.create({
+    data: { name: 'YK Üyesi', email: `y-${stamp}@x.com`, onboardedAt: new Date() },
+  })
+  await db.userRole.create({ data: { userId: boardMember.id, roleId: role.id } })
+  const plainMember = await db.user.create({
+    data: { name: 'Düz Üye', email: `d-${stamp}@x.com`, onboardedAt: new Date() },
+  })
+
+  const channelName = `Yönetim ${stamp}`
+  const channelSlug = `yonetim-${stamp}`
+  await db.channel.create({
+    data: {
+      name: channelName, slug: channelSlug, visibility: 'PRIVATE',
+      createdById: owner.id, members: { create: { userId: owner.id, channelRole: 'LEAD' } },
+    },
+  })
+
+  // YK üyesi: kanala ÜYE OLMADAN erişebilmeli — erişim rolden geliyor.
+  await signInAs(context, boardMember.id)
+  const allowed = await page.goto(`/c/${channelSlug}`)
+  expect(allowed?.status()).toBe(200)
+  // Sayfa BAŞLIĞI hedeflenir (PageHeader'ın h1'i). Düz metin araması sidebar'daki
+  // kopyayı da yakalıyor ve o dar görünümde gizli olduğu için testi düşürüyordu.
+  await expect(page.getByRole('heading', { name: channelName })).toBeVisible()
+
+  // Düz üye: aynı kanal 404, ve kanalın ADI yanıtın hiçbir yerinde geçmemeli.
+  const plainContext = await browser.newContext()
+  const plainPage = await plainContext.newPage()
+  await signInAs(plainContext, plainMember.id)
+  const forbidden = await plainPage.goto(`/c/${channelSlug}`)
+  expect(forbidden?.status()).toBe(404)
+  expect((await forbidden?.text()) ?? '').not.toContain(channelName)
+  await plainContext.close()
+})

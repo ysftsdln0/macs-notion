@@ -8,7 +8,7 @@
 
 import { db } from '@/lib/db'
 import { getActor } from '@/lib/auth/session'
-import { can, type Actor, type DocumentVisibility, type Resource, type Visibility } from '@/lib/auth/policy'
+import { can, has, type Actor, type DocumentVisibility, type Resource, type Visibility } from '@/lib/auth/policy'
 
 type DocLike = {
   channelId: string
@@ -136,7 +136,7 @@ export async function listVisibleDocuments(
     ...(ids ? { id: { in: ids } } : {}),
   }
 
-  if (resolved.globalRole === 'ADMIN') {
+  if (has(resolved, 'CONTENT_READ_ALL')) {
     return db.document.findMany({ where: base, select, orderBy: { updatedAt: 'desc' } })
   }
 
@@ -184,7 +184,7 @@ export async function listArchivedDocuments(): Promise<
   (VisibleDocument & { archivedAt: Date | null })[]
 > {
   const actor = await getActor()
-  if (!actor || actor.globalRole !== 'ADMIN') return []
+  if (!actor || !has(actor, 'TRASH_MANAGE')) return []
   return db.document.findMany({
     where: { archivedAt: { not: null } },
     select: {

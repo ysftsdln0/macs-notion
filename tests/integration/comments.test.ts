@@ -10,11 +10,15 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
     if (!actorRef.current) return null
     const user = await db.user.findUniqueOrThrow({
       where: { id: actorRef.current.id },
-      include: { memberships: true },
+      include: {
+        memberships: true,
+        roles: { select: { role: { select: { permissions: true } } } },
+      },
     })
     return {
       id: user.id, globalRole: user.globalRole, isActive: user.isActive,
       memberships: user.memberships.map((m) => ({ channelId: m.channelId, channelRole: m.channelRole })),
+      permissions: [...new Set(user.roles.flatMap((r) => r.role.permissions))],
     }
   },
 }))
@@ -31,10 +35,17 @@ let publicDoc: { id: string }
 let privateDoc: { id: string }
 
 async function actorOf(id: string) {
-  const user = await db.user.findUniqueOrThrow({ where: { id }, include: { memberships: true } })
+  const user = await db.user.findUniqueOrThrow({
+    where: { id },
+    include: {
+      memberships: true,
+      roles: { select: { role: { select: { permissions: true } } } },
+    },
+  })
   return {
     id: user.id, globalRole: user.globalRole, isActive: user.isActive,
     memberships: user.memberships.map((m) => ({ channelId: m.channelId, channelRole: m.channelRole })),
+    permissions: [...new Set(user.roles.flatMap((r) => r.role.permissions))],
   }
 }
 
@@ -220,5 +231,45 @@ describe('listComments', () => {
     await addComment({ entityType: 'Document', entityId: privateDoc.id, body: 'Gizli yorum' })
     const hidden = await listComments(await actorOf(other.id), 'Document', privateDoc.id)
     expect(hidden).toEqual([])
+  })
+})
+
+describe('yorum moderasyonu', () => {
+  it('CONTENT_WRITE_ALL taşıyan başkasının yorumunu silebilir', async () => {
+    const role = await db.role.create({
+      data: {
+        name: 'Yönetim Kurulu', slug: 'yonetim-kurulu', position: 1,
+        permissions: ['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'],
+      },
+    })
+    const moderator = await db.user.create({ data: { name: 'YK Üyesi' } })
+    await db.userRole.create({ data: { userId: moderator.id, roleId: role.id } })
+
+    actorRef.current = { id: other.id }
+    const created = await addComment({
+      entityType: 'Document', entityId: publicDoc.id, body: 'silinecek',
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+
+    // Moderatör kanala üye DEĞİL; yetkisi yalnızca rolünden geliyor.
+    actorRef.current = { id: moderator.id }
+    const removed = await deleteComment({ id: created.data.id })
+
+    expect(removed.ok).toBe(true)
+  })
+
+  it('izinsiz üye başkasının yorumunu silemez', async () => {
+    actorRef.current = { id: other.id }
+    const created = await addComment({
+      entityType: 'Document', entityId: publicDoc.id, body: 'kalacak',
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+
+    actorRef.current = { id: outsider.id }
+    const removed = await deleteComment({ id: created.data.id })
+
+    expect(removed.ok).toBe(false)
   })
 })

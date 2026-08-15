@@ -10,12 +10,27 @@ import { recordActivity } from '@/lib/activity'
 
 export const createInvite = defineAction({
   input: z.object({
-    globalRole: z.enum(['ADMIN', 'MEMBER']).default('MEMBER'),
+    globalRole: z.enum(['SUPERADMIN', 'ADMIN', 'MEMBER']).default('MEMBER'),
     channelId: z.string().cuid().nullable().default(null),
     channelRole: z.enum(['LEAD', 'MEMBER']).default('MEMBER'),
   }),
   getActor,
-  authorize: async ({ actor }) => ({ allowed: can(actor, 'invite:create', { kind: 'invite' }) }),
+  authorize: async ({ actor, input }) => {
+    if (!can(actor, 'invite:create', { kind: 'invite' })) return { allowed: false }
+    // Kademe dağıtmak SUPERADMIN kapısıdır — `member:updateRole` ile AYNI kural.
+    //
+    // Davet, kademe dağıtmanın ikinci kapısıdır ve kapalı tutulmazsa birincisini
+    // anlamsız kılar: `/invite/<token>` sayfası oturum açmış kullanıcıya daveti
+    // KENDİSİ için uygulatır (invite/[token]/page.tsx:51-66). Yani INVITE_MANAGE
+    // taşıyan düz bir üye (ör. seed'deki "İnsan Kaynakları" rolü) kendine ADMIN
+    // daveti üretip bağlantıyı açar ve iki tıkta ADMIN olurdu — `has()` ona
+    // ondan sonra her izni verir. Spec'in "İK'ya üye pasife alma yetkisi vermek,
+    // ona Başkan üretme yetkisi vermek anlamına gelmemeli" kuralı tam da budur.
+    if (input.globalRole !== 'MEMBER' && actor.globalRole !== 'SUPERADMIN') {
+      return { allowed: false }
+    }
+    return { allowed: true }
+  },
   handler: async ({ actor, input }) => {
     const { token, tokenHash } = createInviteToken()
     const invite = await db.invite.create({

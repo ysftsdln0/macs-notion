@@ -1,10 +1,17 @@
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { requireActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, has } from '@/lib/auth/policy'
+import { listRoles } from '@/server/roles-query'
 import { EmptyState } from '@/components/state/empty-state'
 import { PageContainer, PageHeader } from '@/components/layout/page'
+import { RoleBadge } from '@/components/roles/role-badge'
 import { MemberActions } from './member-actions'
+
+const globalRoleLabels: Record<'SUPERADMIN' | 'ADMIN', string> = {
+  SUPERADMIN: 'Sistem sahibi',
+  ADMIN: 'Yönetici',
+}
 
 // Bu route'a KASITLI OLARAK loading.tsx eklenmez: aşağıdaki notFound() bugün
 // member:list herkese açık olduğu için erişilemez olsa da, kod yolu var
@@ -13,9 +20,24 @@ import { MemberActions } from './member-actions'
 export default async function MembersPage() {
   const actor = await requireActor()
   // Yetki kontrolü veriyi göstermeden önce (bkz. c/[slug]/page.tsx ile aynı desen).
-  if (!can(actor, 'member:list', { kind: 'member', id: actor.id })) notFound()
+  if (!can(actor, 'member:list', {
+    kind: 'member', id: actor.id, targetGlobalRole: actor.globalRole,
+  })) notFound()
 
-  const isAdmin = actor.globalRole === 'ADMIN'
+  // Pasif üyeleri görmek ve üye işlemleri yapmak üye yönetimi yetkisidir;
+  // PRIVATE kanal adlarını görmek içerik okuma yetkisidir. Ayrı sorular.
+  const canManageMembers = has(actor, 'MEMBER_MANAGE')
+  const canSeeAllChannels = has(actor, 'CONTENT_READ_ALL')
+  // Rol atama, üye yönetiminden ayrı bir kapıdır (SUPERADMIN). Rol listesi
+  // yalnızca atama yapabilene çekilir.
+  const canManageRoles = can(actor, 'role:manage', { kind: 'role' })
+  const assignableRoles = canManageRoles ? await listRoles() : []
+  // Kademe değiştirmek üye yönetiminden ayrı ve daha dar bir kapı: yalnızca
+  // SUPERADMIN. Bayrak burada hesaplanıp geçirilir ki arayüz kullanılamayacak
+  // bir kontrol göstermesin.
+  const canChangeGlobalRole = can(actor, 'member:updateRole', {
+    kind: 'member', id: actor.id, targetGlobalRole: actor.globalRole,
+  })
 
   const members = await db.user.findMany({
     // Pasif üyeler daha önce bu sorgudan tamamen dışlanıyordu — bu, uygulama
@@ -24,7 +46,7 @@ export default async function MembersPage() {
     // kurtarma yolu VPS'te elle psql çalıştırmaktı). Admin artık pasif
     // üyeleri de görür ve etkinleştirebilir; düz üye hâlâ yalnızca aktif
     // üyeleri görür (pasif hesapların varlığı iş arkadaşlarına sızmaz).
-    where: isAdmin ? {} : { isActive: true },
+    where: canManageMembers ? {} : { isActive: true },
     orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     // Açık select: email ve diğer kişisel alanlar hiç çekilmez, sayfada
     // gösterilmeyen veri sorgu sonucunda da yer almaz.
@@ -36,6 +58,10 @@ export default async function MembersPage() {
       isActive: true,
       memberships: {
         select: { channel: { select: { id: true, name: true, visibility: true } } },
+      },
+      roles: {
+        select: { role: { select: { id: true, name: true, color: true } } },
+        orderBy: { role: { position: 'asc' } },
       },
     },
   })
@@ -59,7 +85,7 @@ export default async function MembersPage() {
   function visibleChannelNames(memberships: (typeof members)[number]['memberships']): string {
     return (
       memberships
-        .filter(({ channel }) => channel.visibility === 'OPEN' || isAdmin || viewerChannelIds.has(channel.id))
+        .filter(({ channel }) => channel.visibility === 'OPEN' || canSeeAllChannels || viewerChannelIds.has(channel.id))
         .map(({ channel }) => channel.name)
         .join(', ') || '-'
     )
@@ -78,8 +104,10 @@ export default async function MembersPage() {
               <th className="px-3 py-2">Ünvan</th>
               <th className="px-3 py-2">Rol</th>
               <th className="px-3 py-2">Kanallar</th>
-              {isAdmin && <th className="px-3 py-2">Durum</th>}
-              {isAdmin && <th className="px-3 py-2 text-right">İşlemler</th>}
+              {canManageMembers && <th className="px-3 py-2">Durum</th>}
+              {(canManageMembers || canManageRoles) && (
+                <th className="px-3 py-2 text-right">İşlemler</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -92,19 +120,46 @@ export default async function MembersPage() {
               >
                 <td className="px-3 py-2 font-medium">{m.name}</td>
                 <td className="px-3 py-2 text-muted-foreground">{m.title ?? '-'}</td>
-                <td className="px-3 py-2">{m.globalRole === 'ADMIN' ? 'Yönetici' : 'Üye'}</td>
+                {/* Kademe (globalRole) ve roller iki ayrı eksen; ikisi de aynı
+                    sütunda rozet olarak durur. Hiçbiri yoksa düz "Üye". */}
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {m.globalRole !== 'MEMBER' && (
+                      <RoleBadge role={{ name: globalRoleLabels[m.globalRole], color: null }} />
+                    )}
+                    {m.roles.map(({ role }) => (
+                      <RoleBadge key={role.id} role={role} />
+                    ))}
+                    {m.globalRole === 'MEMBER' && m.roles.length === 0 && (
+                      <span className="text-muted-foreground">Üye</span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {visibleChannelNames(m.memberships)}
                 </td>
-                {isAdmin && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
-                {isAdmin && (
+                {canManageMembers && <td className="px-3 py-2">{m.isActive ? 'Aktif' : 'Pasif'}</td>}
+                {(canManageMembers || canManageRoles) && (
                   <td className="px-3 py-2 text-right">
+                    {/* SUPERADMIN satırları da düzenlenebilir: devir teslim
+                        (yeni başkan atanıp eskisinin düşürülmesi) buradan
+                        yapılır. Güvenlik sunucuda — can() SUPERADMIN'e yalnızca
+                        SUPERADMIN'in dokunmasına izin verir ve members.ts son
+                        aktif SUPERADMIN'i düşürtmez. */}
                     <MemberActions
                       userId={m.id}
                       name={m.name}
                       globalRole={m.globalRole}
                       isActive={m.isActive}
                       isSelf={m.id === actor.id}
+                      canManageMembers={canManageMembers}
+                      canChangeGlobalRole={canChangeGlobalRole}
+                      canManageRoles={canManageRoles}
+                      assignableRoles={assignableRoles.map((role) => ({
+                        id: role.id,
+                        name: role.name,
+                      }))}
+                      assignedRoleIds={m.roles.map(({ role }) => role.id)}
                     />
                   </td>
                 )}

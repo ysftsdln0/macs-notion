@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   getActor: async () =>
     actorRef.current && {
       id: actorRef.current.id, globalRole: 'MEMBER' as const,
-      isActive: true, memberships: [],
+      isActive: true, memberships: [], permissions: [],
     },
 }))
 

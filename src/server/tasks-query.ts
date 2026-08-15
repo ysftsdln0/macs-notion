@@ -5,7 +5,7 @@
 
 import type { Prisma, TaskPriority, TaskStatus } from '@prisma/client'
 import { db } from '@/lib/db'
-import { can, type Actor, type Visibility } from '@/lib/auth/policy'
+import { can, has, type Actor, type Visibility } from '@/lib/auth/policy'
 
 export type TaskView = {
   id: string
@@ -46,7 +46,7 @@ function toView(row: TaskRow): TaskView {
  * herkese, PRIVATE kanallar yalnızca üyelerine, admin'e hepsi.
  */
 function readableChannelFilter(actor: Actor): Prisma.TaskWhereInput {
-  if (actor.globalRole === 'ADMIN') return {}
+  if (has(actor, 'CONTENT_READ_ALL')) return {}
   return {
     OR: [
       { channel: { visibility: 'OPEN' } },

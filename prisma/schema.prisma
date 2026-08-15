@@ -14,8 +14,21 @@ datasource db {
 }
 
 enum GlobalRole {
+  SUPERADMIN
   ADMIN
   MEMBER
+}
+
+enum Permission {
+  CONTENT_READ_ALL
+  CONTENT_WRITE_ALL
+  BUDGET_READ_ALL
+  BUDGET_WRITE_ALL
+  MEMBER_MANAGE
+  INVITE_MANAGE
+  CHANNEL_CREATE
+  CHANNEL_MANAGE_ALL
+  TRASH_MANAGE
 }
 
 enum ChannelRole {
@@ -121,6 +134,8 @@ model User {
   createdSponsors Sponsor[]      @relation("SponsorCreatedBy")
   createdBudgetEntries BudgetEntry[] @relation("BudgetCreatedBy")
   uploads         Attachment[]
+  roles          UserRole[]
+  grantedRoles   UserRole[]      @relation("RoleGrantedBy")
 
   @@index([isActive])
 }
@@ -468,4 +483,38 @@ model Activity {
   @@index([createdAt])
   @@index([entityType, entityId])
   @@index([channelId])
+}
+
+// Kulüp geneli kademe: "hangi koordinatörlüktesin" sorusunu ChannelMember
+// cevaplar, "kulüpte hangi yetkilerdesin" sorusunu bu tablo cevaplar.
+// İzin KATALOĞU koddadır (Permission enum); ayarlanabilir olan, rolün hangi
+// izinleri taşıdığıdır. Kodda kontrol edilmeyen bir izin yalandır.
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  slug        String       @unique
+  color       String?
+  permissions Permission[]
+  isSystem    Boolean      @default(false)
+  // Yalnızca rozet sıralaması için. Yetki hiyerarşisi DEĞİL — rol
+  // düzenleyebilen tek aktör (SUPERADMIN) zaten her izne sahip.
+  position    Int          @unique
+  createdAt   DateTime     @default(now())
+
+  members UserRole[]
+}
+
+model UserRole {
+  id          String   @id @default(cuid())
+  userId      String
+  roleId      String
+  grantedById String?
+  grantedAt   DateTime @default(now())
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("RoleGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, roleId])
+  @@index([roleId])
 }

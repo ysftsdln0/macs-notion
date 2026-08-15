@@ -10,11 +10,15 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
     if (!actorRef.current) return null
     const user = await db.user.findUniqueOrThrow({
       where: { id: actorRef.current.id },
-      include: { memberships: true },
+      include: {
+        memberships: true,
+        roles: { select: { role: { select: { permissions: true } } } },
+      },
     })
     return {
       id: user.id, globalRole: user.globalRole, isActive: user.isActive,
       memberships: user.memberships.map((m) => ({ channelId: m.channelId, channelRole: m.channelRole })),
+      permissions: [...new Set(user.roles.flatMap((r) => r.role.permissions))],
     }
   },
 }))
@@ -34,10 +38,17 @@ let outsider: { id: string }
 let channel: { id: string }
 
 async function actorOf(id: string) {
-  const user = await db.user.findUniqueOrThrow({ where: { id }, include: { memberships: true } })
+  const user = await db.user.findUniqueOrThrow({
+    where: { id },
+    include: {
+      memberships: true,
+      roles: { select: { role: { select: { permissions: true } } } },
+    },
+  })
   return {
     id: user.id, globalRole: user.globalRole, isActive: user.isActive,
     memberships: user.memberships.map((m) => ({ channelId: m.channelId, channelRole: m.channelRole })),
+    permissions: [...new Set(user.roles.flatMap((r) => r.role.permissions))],
   }
 }
 

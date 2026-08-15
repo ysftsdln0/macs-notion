@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { defineAction, actionError } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, has, type Actor } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 import { loadDocumentContext } from '@/server/documents-query'
 
@@ -108,7 +108,7 @@ export const restoreDocument = defineAction({
   input: z.object({ id: z.string().cuid() }),
   getActor,
   // Çöp kutusu yalnızca admin ekranı: geri alma da admin yetkisi.
-  authorize: async ({ actor }) => ({ allowed: actor.globalRole === 'ADMIN' }),
+  authorize: async ({ actor }) => ({ allowed: has(actor, 'TRASH_MANAGE') }),
   handler: async ({ actor, input }) => {
     const doc = await db.document.findUnique({ where: { id: input.id } })
     if (!doc) throw actionError('NOT_FOUND')
@@ -127,7 +127,7 @@ export const restoreDocument = defineAction({
 export const permanentlyDeleteDocument = defineAction({
   input: z.object({ id: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor }) => ({ allowed: actor.globalRole === 'ADMIN' }),
+  authorize: async ({ actor }) => ({ allowed: has(actor, 'TRASH_MANAGE') }),
   handler: async ({ actor, input }) => {
     const doc = await db.document.findUnique({ where: { id: input.id } })
     if (!doc) throw actionError('NOT_FOUND')

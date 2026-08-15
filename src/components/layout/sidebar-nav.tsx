@@ -37,7 +37,8 @@ type NavProps = {
   unreadCount: number
   canCreateChannel: boolean
   canSeeBudget: boolean
-  isAdmin: boolean
+  canSeeAdminPanel: boolean
+  canSeeTrash: boolean
 }
 
 const channelTints = [
@@ -182,7 +183,8 @@ function NavBody({
   unreadCount,
   canCreateChannel,
   canSeeBudget,
-  isAdmin,
+  canSeeAdminPanel,
+  canSeeTrash,
 }: NavProps) {
   const pathname = usePathname()
   const { open, animate } = useSidebar()
@@ -301,14 +303,23 @@ function NavBody({
           </div>
         )}
 
-        {isAdmin && (
+        {(canSeeAdminPanel || canSeeTrash) && (
           <div className="space-y-0.5">
             <SectionLabel expanded={expanded} reserve>
               Yönetim
             </SectionLabel>
+            {/* Her bağlantı KENDİ izniyle görünür. Tek bayrağa bağlıyken
+                INVITE_MANAGE taşıyıp TRASH_MANAGE taşımayan bir rol (seed'deki
+                "İnsan Kaynakları" tam olarak böyle) 404'e giden bir "Çöp
+                kutusu" bağlantısı görüyordu; tersi daha kötüydü, yalnızca
+                TRASH_MANAGE taşıyan rol özelliğine hiç ulaşamıyordu. */}
             {[
-              { href: '/admin', label: 'Yönetim', icon: ShieldCheck },
-              { href: '/trash', label: 'Çöp kutusu', icon: Trash2 },
+              ...(canSeeAdminPanel
+                ? [{ href: '/admin', label: 'Yönetim', icon: ShieldCheck }]
+                : []),
+              ...(canSeeTrash
+                ? [{ href: '/trash', label: 'Çöp kutusu', icon: Trash2 }]
+                : []),
             ].map(({ href, label, icon: Icon }) => (
               <SidebarLink
                 key={href}

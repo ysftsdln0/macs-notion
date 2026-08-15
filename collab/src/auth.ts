@@ -1,14 +1,13 @@
+import { flattenPermissions, type Actor } from '../../src/lib/auth/policy.ts'
 import { verifyCollabToken } from '../../src/lib/auth/collab-token.ts'
 import { PrismaClient } from '../generated/prisma/client.js'
 
 const db = new PrismaClient()
 
-export type CollabActor = {
-  id: string
-  globalRole: 'ADMIN' | 'MEMBER'
-  isActive: boolean
-  memberships: { channelId: string; channelRole: 'LEAD' | 'MEMBER' }[]
-}
+// Ana uygulamanın Actor tipiyle AYNI olmak zorunda: authorize-document.ts
+// bunu doğrudan can()'e geçiriyor. Ayrı bir tip tutmak, alan eklendiğinde
+// sessizce eksik aktör üretme riskidir.
+export type CollabActor = Actor
 
 function authSecret(): string {
   const secret = process.env.AUTH_SECRET
@@ -32,7 +31,10 @@ export async function resolveActor(token: string | null): Promise<CollabActor | 
 
   const user = await db.user.findUnique({
     where: { id: userId },
-    include: { memberships: true },
+    include: {
+      memberships: true,
+      roles: { select: { role: { select: { permissions: true } } } },
+    },
   })
   if (!user || !user.isActive) return null
 
@@ -44,5 +46,6 @@ export async function resolveActor(token: string | null): Promise<CollabActor | 
       channelId: m.channelId,
       channelRole: m.channelRole,
     })),
+    permissions: flattenPermissions(user.roles),
   }
 }

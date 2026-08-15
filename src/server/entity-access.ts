@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db'
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, flattenPermissions, type Actor } from '@/lib/auth/policy'
 import { loadDocumentContext } from '@/server/documents-query'
 import { loadTaskContext } from '@/server/tasks-query'
 import { loadEventContext } from '@/server/events-query'
@@ -138,7 +138,10 @@ export async function listUsersWithAccess(
 ): Promise<{ id: string; name: string }[]> {
   const users = await db.user.findMany({
     where: { isActive: true },
-    select: { id: true, name: true, globalRole: true, isActive: true, memberships: true },
+    select: {
+      id: true, name: true, globalRole: true, isActive: true, memberships: true,
+      roles: { select: { role: { select: { permissions: true } } } },
+    },
     orderBy: { name: 'asc' },
   })
 
@@ -152,6 +155,7 @@ export async function listUsersWithAccess(
         channelId: m.channelId,
         channelRole: m.channelRole,
       })),
+      permissions: flattenPermissions(user.roles),
     }
     const access = await resolveEntityAccess(actor, entityType, entityId)
     if (access?.canRead) allowed.push({ id: user.id, name: user.name })

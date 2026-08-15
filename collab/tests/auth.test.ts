@@ -92,3 +92,35 @@ describe('authorizeDocument', () => {
     expect(r).toEqual({ ok: false, reason: 'document' })
   })
 })
+
+describe('rol izinleri collab tarafında', () => {
+  // can() artık has() üzerinden permissions'a bakıyor (Task 3) — rol
+  // sahibi, üye olmadığı kanaldaki dokümana authorizeDocument'in tüm
+  // zincirinden (token → resolveActor → can()) geçerek erişir.
+  it('CONTENT_READ_ALL + CONTENT_WRITE_ALL taşıyan rol, üye olunmayan kanaldaki dokümana erişim verir', async () => {
+    const role = await db.role.create({
+      data: {
+        name: 'Yönetim Kurulu', slug: 'yonetim-kurulu', position: 1,
+        permissions: ['CONTENT_READ_ALL', 'CONTENT_WRITE_ALL'],
+      },
+    })
+    await db.userRole.create({ data: { userId: outsider.id, roleId: role.id } })
+    const doc = await db.document.create({
+      data: { title: 'Not', channelId, createdById: owner.id },
+    })
+
+    const r = await authorizeDocument(makeToken(outsider.id), doc.id)
+
+    expect(r).toEqual({ ok: true, actorId: outsider.id })
+  })
+
+  it('rolsüz yabancı aynı dokümana bağlanamaz', async () => {
+    const doc = await db.document.create({
+      data: { title: 'Not', channelId, createdById: owner.id },
+    })
+
+    const r = await authorizeDocument(makeToken(outsider.id), doc.id)
+
+    expect(r.ok).toBe(false)
+  })
+})

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireActor } from '@/lib/auth/session'
+import { has } from '@/lib/auth/policy'
 import { listArchivedDocuments } from '@/server/documents-query'
 import { EmptyState } from '@/components/state/empty-state'
 import { PageContainer, PageHeader } from '@/components/layout/page'
@@ -12,7 +13,7 @@ export default async function TrashPage() {
   const actor = await requireActor()
   // Çöp kutusu bir admin ekranı: restoreDocument ve
   // permanentlyDeleteDocument action'ları da aynı kararı tekrar uygular.
-  if (actor.globalRole !== 'ADMIN') notFound()
+  if (!has(actor, 'TRASH_MANAGE')) notFound()
 
   const documents = await listArchivedDocuments()
 

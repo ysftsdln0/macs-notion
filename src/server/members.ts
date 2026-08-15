@@ -5,10 +5,10 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { can } from '@/lib/auth/policy'
+import { can, type GlobalRole } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 
-type MemberRow = { id: string; globalRole: 'ADMIN' | 'MEMBER'; isActive: boolean }
+type MemberRow = { id: string; globalRole: GlobalRole; isActive: boolean }
 
 async function assertMemberExists(tx: Prisma.TransactionClient, userId: string): Promise<MemberRow> {
   const target = await tx.user.findUnique({ where: { id: userId } })
@@ -16,47 +16,52 @@ async function assertMemberExists(tx: Prisma.TransactionClient, userId: string):
   return target
 }
 
-// Bir üyeyi havuzdan çıkarmak (pasifleştirmek ya da MEMBER'a düşürmek),
-// sistemin son AKTİF ADMIN'ini kaybetmesine yol açamaz — aksi halde kimse
-// yönetim işlemi (invite:create, member:updateRole, channel:archive, ...)
-// yapamaz hale gelir ve içeriden kurtarılamaz. Pasif ADMIN'ler sayılmaz:
-// isActive gate'i (policy.ts) onları zaten her yetkiden mahrum bırakıyor,
-// dolayısıyla onları "hâlâ yönetebilen admin" saymak yanlış güvenlik hissi
-// verir ve gerçek bir açık bırakır.
+// Bir üyeyi havuzdan çıkarmak (pasifleştirmek ya da SUPERADMIN'den
+// düşürmek), sistemin son AKTİF SUPERADMIN'ini kaybetmesine yol açamaz —
+// aksi halde kimse rol yönetemez (role:manage, member:updateRole) hale
+// gelir ve içeriden kurtarılamaz. Pasif SUPERADMIN'ler sayılmaz: isActive
+// gate'i (policy.ts) onları zaten her yetkiden mahrum bırakıyor,
+// dolayısıyla onları "hâlâ yönetebilen superadmin" saymak yanlış güvenlik
+// hissi verir ve gerçek bir açık bırakır.
 //
-// `target` zaten aktif bir ADMIN değilse çıkış yapılır: onu havuzdan
-// çıkarmak (deaktivasyon ya da düşürme) mevcut aktif admin sayısını
+// `target` zaten aktif bir SUPERADMIN değilse çıkış yapılır: onu havuzdan
+// çıkarmak (deaktivasyon ya da düşürme) mevcut aktif superadmin sayısını
 // değiştirmez, risk yok.
 //
 // `tx` alması bilinçli: sayım ve yazım AYNI transaction içinde olmalı —
-// aksi halde son iki aktif admin'i aynı anda birbirinden çıkarmaya çalışan
-// iki istek (deactivateMember + deactivateMember, deactivateMember +
-// updateMemberRole, ya da ikisi de updateMemberRole) ikisi de "en az bir
-// başka aktif admin var" okuyup ikisi de geçebilir — bu klasik "write
+// aksi halde son iki aktif superadmin'i aynı anda birbirinden çıkarmaya
+// çalışan iki istek (deactivateMember + deactivateMember, deactivateMember
+// + updateMemberRole, ya da ikisi de updateMemberRole) ikisi de "en az bir
+// başka aktif superadmin var" okuyup ikisi de geçebilir — bu klasik "write
 // skew": her iki transaction'ın kararı da diğerinin YAZDIĞI satıra bağlı,
 // ama hiçbiri diğerinin yazdığı satırı kendi sorgusunda hedef olarak
 // hariç tutmaz. Serializable izolasyon (runAdminGuardedChange) bu deseni
 // veritabanı seviyesinde yakalar (bkz. channels.ts'teki assertNotLastLead
 // ile aynı yarış deseni, iki taraflı hale genelleştirilmiş).
-async function assertActiveAdminSurvivesWithout(
+//
+// Korunan havuz ADMIN değil SUPERADMIN'dir. Üç değerli enum'da bu ayrım
+// zorunlu: ADMIN havuzunun boşalması geri alınabilir (SUPERADMIN yeniden
+// atar), SUPERADMIN havuzunun boşalması sistemi rol yönetimi yapılamaz
+// halde bırakır.
+async function assertActiveSuperadminSurvivesWithout(
   tx: Prisma.TransactionClient,
   target: MemberRow,
 ): Promise<void> {
-  if (target.globalRole !== 'ADMIN' || !target.isActive) return
+  if (target.globalRole !== 'SUPERADMIN' || !target.isActive) return
   const remaining = await tx.user.count({
-    where: { globalRole: 'ADMIN', isActive: true, id: { not: target.id } },
+    where: { globalRole: 'SUPERADMIN', isActive: true, id: { not: target.id } },
   })
   if (remaining === 0) {
-    throw actionError('CONFLICT', { globalRole: 'Sistemde en az bir aktif admin kalmalı.' })
+    throw actionError('CONFLICT', { globalRole: 'Sistemde en az bir aktif superadmin kalmalı.' })
   }
 }
 
-// Serializable izolasyon, iki eş zamanlı admin-havuzu değişikliği
+// Serializable izolasyon, iki eş zamanlı superadmin-havuzu değişikliği
 // çakıştığında Postgres'in birini commit'te reddetmesini sağlar (kaybeden
-// P2034 alır). Bu, assertActiveAdminSurvivesWithout'un "count === 0"
+// P2034 alır). Bu, assertActiveSuperadminSurvivesWithout'un "count === 0"
 // kontrolünün kaçırabileceği yarışları veritabanı seviyesinde kapatır
 // (bkz. channels.ts'teki runMembershipChange). deactivateMember ve
-// updateMemberRole ikisi de aynı admin havuzunu koruduğu için aynı
+// updateMemberRole ikisi de aynı superadmin havuzunu koruduğu için aynı
 // sarmalayıcıyı paylaşır.
 async function runAdminGuardedChange<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -74,13 +79,24 @@ async function runAdminGuardedChange<T>(
 export const deactivateMember = defineAction({
   input: z.object({ userId: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor, input }) => ({
-    allowed: can(actor, 'member:deactivate', { kind: 'member', id: input.userId }),
-  }),
+  authorize: async ({ actor, input }) => {
+    // Hedefin kademesi bilinmeden karar verilemez: "ADMIN, SUPERADMIN'e
+    // dokunamaz" kuralı buna dayanıyor.
+    const target = await db.user.findUnique({
+      where: { id: input.userId },
+      select: { globalRole: true },
+    })
+    if (!target) return { allowed: false, code: 'NOT_FOUND' }
+    return {
+      allowed: can(actor, 'member:deactivate', {
+        kind: 'member', id: input.userId, targetGlobalRole: target.globalRole,
+      }),
+    }
+  },
   handler: async ({ actor, input }) => {
     await runAdminGuardedChange(async (tx) => {
       const target = await assertMemberExists(tx, input.userId)
-      await assertActiveAdminSurvivesWithout(tx, target)
+      await assertActiveSuperadminSurvivesWithout(tx, target)
       await tx.user.update({ where: { id: input.userId }, data: { isActive: false } })
       // Oturumların silinmesi zorunludur: aksi halde pasife alınan kullanıcı
       // mevcut çerezle çalışmaya devam eder.
@@ -95,17 +111,29 @@ export const deactivateMember = defineAction({
 })
 
 // deactivateMember'ın tersi. assertMemberExists'i aynen paylaşır (NOT_FOUND
-// aynı şekilde davranır), ama assertActiveAdminSurvivesWithout'u ÇAĞIRMAZ:
-// bu işlem havuzu yalnızca büyütür, aktif admin tavanını asla ihlal edemez
-// (bkz. policy.ts'teki 'member:reactivate' yorumu). Bu yüzden Serializable
-// izolasyona da gerek yok — burada korunacak bir invariant yok, iki eş
-// zamanlı etkinleştirme birbirine karışsa bile sonuç aynı: isActive: true.
+// aynı şekilde davranır), ama assertActiveSuperadminSurvivesWithout'u
+// ÇAĞIRMAZ: bu işlem havuzu yalnızca büyütür, aktif superadmin tavanını
+// asla ihlal edemez (bkz. policy.ts'teki 'member:reactivate' yorumu). Bu
+// yüzden Serializable izolasyona da gerek yok — burada korunacak bir
+// invariant yok, iki eş zamanlı etkinleştirme birbirine karışsa bile sonuç
+// aynı: isActive: true.
 export const reactivateMember = defineAction({
   input: z.object({ userId: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor, input }) => ({
-    allowed: can(actor, 'member:reactivate', { kind: 'member', id: input.userId }),
-  }),
+  authorize: async ({ actor, input }) => {
+    // Hedefin kademesi bilinmeden karar verilemez: "ADMIN, SUPERADMIN'e
+    // dokunamaz" kuralı buna dayanıyor.
+    const target = await db.user.findUnique({
+      where: { id: input.userId },
+      select: { globalRole: true },
+    })
+    if (!target) return { allowed: false, code: 'NOT_FOUND' }
+    return {
+      allowed: can(actor, 'member:reactivate', {
+        kind: 'member', id: input.userId, targetGlobalRole: target.globalRole,
+      }),
+    }
+  },
   handler: async ({ actor, input }) => {
     await db.$transaction(async (tx) => {
       await assertMemberExists(tx, input.userId)
@@ -120,16 +148,40 @@ export const reactivateMember = defineAction({
 })
 
 export const updateMemberRole = defineAction({
-  input: z.object({ userId: z.string().cuid(), globalRole: z.enum(['ADMIN', 'MEMBER']) }),
-  getActor,
-  authorize: async ({ actor, input }) => ({
-    allowed: can(actor, 'member:updateRole', { kind: 'member', id: input.userId }),
+  input: z.object({
+    userId: z.string().cuid(),
+    globalRole: z.enum(['SUPERADMIN', 'ADMIN', 'MEMBER']),
   }),
+  getActor,
+  authorize: async ({ actor, input }) => {
+    // Hedefin kademesi bilinmeden karar verilemez: "ADMIN, SUPERADMIN'e
+    // dokunamaz" kuralı buna dayanıyor.
+    const target = await db.user.findUnique({
+      where: { id: input.userId },
+      select: { globalRole: true },
+    })
+    if (!target) return { allowed: false, code: 'NOT_FOUND' }
+    return {
+      allowed: can(actor, 'member:updateRole', {
+        kind: 'member', id: input.userId, targetGlobalRole: target.globalRole,
+      }),
+    }
+  },
   handler: async ({ actor, input }) => {
     await runAdminGuardedChange(async (tx) => {
       const target = await assertMemberExists(tx, input.userId)
-      if (input.globalRole === 'MEMBER') {
-        await assertActiveAdminSurvivesWithout(tx, target)
+      // Herhangi bir SUPERADMIN dışı hedef, üyeyi havuzdan çıkarır — yalnızca
+      // MEMBER değil. İki değerli enum'da (ADMIN/MEMBER) MEMBER tek düşürme
+      // yoluydu; üçüncü kademeyle SUPERADMIN'den ADMIN'e düşürmek de aynı
+      // şekilde havuzdan çıkarır ama bu kontrolsüz kalıyordu (devir teslim
+      // senaryosu — "bir SUPERADMIN diğerini düşürebilir" — tam olarak bu
+      // yolu kullanıyor). `!== 'SUPERADMIN'` demek `=== 'SUPERADMIN'` hariç
+      // her şey demek; assertActiveSuperadminSurvivesWithout zaten yalnızca
+      // hedef aktif bir SUPERADMIN'se bir şey yapar, o yüzden koşulsuz
+      // çağırmak SUPERADMIN → SUPERADMIN'i (kimseyi çıkarmayan no-op'u)
+      // yanlışlıkla reddetmez.
+      if (input.globalRole !== 'SUPERADMIN') {
+        await assertActiveSuperadminSurvivesWithout(tx, target)
       }
       await tx.user.update({ where: { id: input.userId }, data: { globalRole: input.globalRole } })
       await recordActivity(tx, {

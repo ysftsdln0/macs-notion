@@ -9,10 +9,75 @@ type SeedResult =
   | { ok: false; reason: string }
 
 /**
- * Kurulum daveti: sahipsiz (`createdById: null`), ADMIN yetkili, kanalsız.
- * Davetli linki açıp Google ile girer; `events.createUser` onu ADMIN yapar
- * ve ilk kanalı kendisi açar. Böylece ilk kullanıcı da herkesle aynı
- * yoldan girer — giriş akışında kuruluma özel bir istisna yoktur.
+ * Kulübün örgüt şemasındaki kademeler. `isSystem: true` oldukları için
+ * silinemezler ve adları değişmez — bu seed ve kod onları adlarıyla tanır.
+ * İzinleri panelden değiştirilebilir: kulübün Yönetim Kurulu'na ne verdiğini
+ * zamanla değiştirmesi meşru bir ihtiyaç.
+ *
+ * Rol YÖNETİMİ bilerek listede yok — o bir izin değil, SUPERADMIN kapısı.
+ * İzinleri dağıtan yetkinin kendisi ayarlanabilir olsaydı, onu taşıyan
+ * herkes kendine her şeyi yazabilirdi.
+ */
+const SYSTEM_ROLES = [
+  {
+    name: 'Yönetim Kurulu',
+    slug: 'yonetim-kurulu',
+    color: '#2563eb',
+    position: 1,
+    permissions: [
+      'CONTENT_READ_ALL', 'CONTENT_WRITE_ALL',
+      'BUDGET_READ_ALL', 'BUDGET_WRITE_ALL',
+      'MEMBER_MANAGE', 'INVITE_MANAGE',
+      'CHANNEL_CREATE', 'CHANNEL_MANAGE_ALL', 'TRASH_MANAGE',
+    ],
+  },
+  {
+    name: 'Genel Sekreter',
+    slug: 'genel-sekreter',
+    color: '#7c3aed',
+    position: 2,
+    permissions: ['CONTENT_READ_ALL', 'INVITE_MANAGE', 'TRASH_MANAGE'],
+  },
+  {
+    name: 'İnsan Kaynakları',
+    slug: 'insan-kaynaklari',
+    color: '#059669',
+    position: 3,
+    permissions: ['MEMBER_MANAGE', 'INVITE_MANAGE'],
+  },
+] as const
+
+/**
+ * Her deploy'da çalışabilir olmalı: var olan rolün izinlerini EZMEZ, yalnızca
+ * eksik olanı ekler. Aksi halde panelden yapılan her ayar bir sonraki
+ * deploy'da sessizce geri alınırdı.
+ */
+export async function seedSystemRoles(): Promise<void> {
+  for (const role of SYSTEM_ROLES) {
+    const existing = await db.role.findUnique({ where: { slug: role.slug } })
+    if (existing) continue
+    await db.role.create({
+      data: {
+        name: role.name,
+        slug: role.slug,
+        color: role.color,
+        position: role.position,
+        isSystem: true,
+        permissions: [...role.permissions],
+      },
+    })
+  }
+}
+
+/**
+ * Kurulum daveti: sahipsiz (`createdById: null`), SUPERADMIN yetkili, kanalsız.
+ * Davetli linki açıp Google ile girer; davet onu SUPERADMIN yapar ve ilk kanalı
+ * kendisi açar. Böylece ilk kullanıcı da herkesle aynı yoldan girer — giriş
+ * akışında kuruluma özel bir istisna yoktur.
+ *
+ * Kademe ADMIN değil SUPERADMIN: rol paneli SUPERADMIN kapısında durur, yani
+ * ADMIN yetkili bir kurulum daveti kimseye rol yönetimi açmazdı ve sistem
+ * kurulur kurulmaz rolsüz kalırdı.
  *
  * Hem "kullanıcı var mı" hem "bekleyen kurulum daveti var mı" kontrolleri
  * ile ekleme aynı Serializable transaction içindedir — READ COMMITTED'da bu
@@ -29,14 +94,14 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
   try {
     return await db.$transaction(
       async (tx) => {
-        // Canlı bir sistemde çalıştırılırsa sessizce admin daveti üretmemeli.
+        // Canlı bir sistemde çalıştırılırsa sessizce sahip daveti üretmemeli.
         if ((await tx.user.count()) > 0) {
           return { ok: false, reason: 'Sistemde zaten kullanıcı var; kurulum daveti üretilmedi.' }
         }
 
         // İkinci bir çalıştırma (ör. her deploy'da seed), ilkini iptal etmeden
-        // ikinci bir canlı ADMIN daveti basmamalı — aksi halde 7 gün boyunca
-        // birden fazla geçerli admin kimlik bilgisi ortada kalır.
+        // ikinci bir canlı SUPERADMIN daveti basmamalı — aksi halde 7 gün
+        // boyunca birden fazla geçerli sahip kimlik bilgisi ortada kalır.
         const outstanding = await tx.invite.findFirst({
           where: {
             createdById: null,
@@ -57,7 +122,7 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
         await tx.invite.create({
           data: {
             tokenHash,
-            globalRole: 'ADMIN',
+            globalRole: 'SUPERADMIN',
             channelId: null,
             createdById: null,
             expiresAt: inviteExpiry(),
@@ -78,6 +143,11 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
 }
 
 async function main() {
+  // Roller kullanıcıdan bağımsız: kurulum daveti üretilmese bile (sistemde
+  // zaten kullanıcı varsa) eksik sistem rolleri tamamlanmalı.
+  await seedSystemRoles()
+  console.log('Sistem rolleri hazır (Yönetim Kurulu, Genel Sekreter, İnsan Kaynakları).')
+
   const result = await seedBootstrapInvite()
   if (!result.ok) {
     console.log(result.reason)
@@ -85,7 +155,7 @@ async function main() {
   }
   console.log('\nKurulum daveti üretildi. Bu link bir kez gösterilir:\n')
   console.log(`  ${result.url}\n`)
-  console.log('Linki aç, Google ile gir, profilini tamamla. Yönetici olacaksın.\n')
+  console.log('Linki aç, Google ile gir, profilini tamamla. Sistem sahibi olacaksın.\n')
 }
 
 // `tsx prisma/seed.ts` ile çalıştırıldığında bu dosya doğrudan giriş

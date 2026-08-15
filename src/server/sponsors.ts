@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { actionError, defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
-import { can, type Actor } from '@/lib/auth/policy'
+import { can, has, type Actor } from '@/lib/auth/policy'
 import { recordActivity } from '@/lib/activity'
 import { loadSponsorContext } from '@/server/sponsors-query'
 
@@ -198,7 +198,7 @@ export const archiveSponsor = defineAction({
 export const restoreSponsor = defineAction({
   input: z.object({ id: z.string().cuid() }),
   getActor,
-  authorize: async ({ actor }) => ({ allowed: actor.globalRole === 'ADMIN' }),
+  authorize: async ({ actor }) => ({ allowed: has(actor, 'TRASH_MANAGE') }),
   handler: async ({ actor, input }) => {
     const sponsor = await db.sponsor.findUnique({ where: { id: input.id } })
     if (!sponsor) throw actionError('NOT_FOUND')

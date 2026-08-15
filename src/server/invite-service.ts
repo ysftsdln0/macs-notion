@@ -79,8 +79,15 @@ export async function applyInvite(
     })
     if (claim.count !== 1) return false
 
-    if (invite.globalRole === 'ADMIN') {
-      await tx.user.update({ where: { id: userId }, data: { globalRole: 'ADMIN' } })
+    // Davetin taşıdığı kademe ne ise o uygulanır. Tek bir enum değerini
+    // isimle kontrol etmek (`=== 'ADMIN'`), enum üçüncü kademeyi kazandığında
+    // sessizce yetki düşüren bir desendi: SUPERADMIN daveti kabul edilir ama
+    // davetli MEMBER olarak açılır, sistemde hiç SUPERADMIN kalmazdı.
+    if (invite.globalRole !== 'MEMBER') {
+      await tx.user.update({
+        where: { id: userId },
+        data: { globalRole: invite.globalRole },
+      })
     }
     if (invite.channelId) {
       await tx.channelMember.upsert({
