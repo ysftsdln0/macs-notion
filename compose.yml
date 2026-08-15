@@ -46,8 +46,9 @@ services:
       AUTH_TRUST_HOST: 'true'
       # Tarayıcının bağlanacağı collab adresi. Sunucuda okunur ve doküman
       # sayfasından istemciye prop olarak iner — imaja gömülmez, bu yüzden
-      # aynı imaj her alan adında çalışır.
-      COLLAB_URL: wss://${DOMAIN}/collab
+      # aynı imaj her alan adında çalışır. DOMAIN boşsa ${DOMAIN:?...} patlar;
+      # aksi halde COLLAB_URL sessizce "wss:///collab" gibi geçersiz kalırdı.
+      COLLAB_URL: wss://${DOMAIN:?DOMAIN gerekli - .env dosyasında tanımlı olmalı}/collab
       UPLOAD_DIR: /data/uploads
     volumes:
       # scripts/backup.sh bu volume'u adıyla yedekler (macs_uploads).

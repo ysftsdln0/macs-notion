@@ -44,6 +44,19 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/macs
+            # compose.yml ve Caddyfile imajların İÇİNDE değil, sunucudaki bu
+            # git checkout'ta yaşıyor (bkz. README "İlk deploy" adım 1) —
+            # pull olmadan yeni imajlar eski konfigürasyonla ayağa kalkar ve
+            # bu branch'in iki prod düzeltmesi (COLLAB_URL, Caddy matcher'ı)
+            # deploy yeşil geçtiği halde sunucuya hiç ulaşmaz.
+            git pull
             IMAGE_TAG=${{ github.sha }} docker compose pull web migrate collab
             IMAGE_TAG=${{ github.sha }} docker compose up -d
+            # Caddyfile bir bind mount: İÇERİĞİ Compose'un config hash'ine
+            # girmez, yalnızca mount tanımı girer. Yani Caddyfile değişse
+            # bile `up -d` caddy'yi "up-to-date" görüp DOKUNMAZ ve container
+            # eski dosyayla çalışmaya devam eder — Caddy 2 de kendi config
+            # dosyasını izlemez. Yeni matcher'ın devreye girmesi için config'i
+            # açıkça yeniden yükletmek gerekir.
+            docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
             docker image prune -f

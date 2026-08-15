@@ -8,6 +8,8 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
+	# `/collab*` /collaborators gibi başka önekleri de eşler; bugün böyle bir
+	# route yok ama biri eklenirse buraya sessizce düşer.
 	handle_path /collab* {
 		reverse_proxy collab:1234
 	}
