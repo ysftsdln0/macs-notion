@@ -28,7 +28,7 @@ async function seedInvite(
     expiresAt: Date
     revokedAt: Date
     channelId: string | null
-    globalRole: 'ADMIN' | 'MEMBER'
+    globalRole: 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
   }> = {},
 ) {
   const { token, tokenHash } = createInviteToken()
@@ -227,6 +227,32 @@ describe('applyInvite', () => {
     const activity = await db.activity.findFirstOrThrow()
     expect(activity.verb).toBe('invite.accepted')
     expect(activity.actorId).toBe(user.id)
+  })
+
+  // Tek bir enum değerini isimle kontrol etmek, enum büyüdüğünde sessizce
+  // yetki düşüren bir desendi: SUPERADMIN daveti kabul edilir ama davetli
+  // MEMBER olarak açılır, sistemde hiç SUPERADMIN kalmazdı.
+  it('SUPERADMIN daveti kullanıcıyı SUPERADMIN yapar', async () => {
+    const { inviteId, tokenHash } = await seedInvite({ globalRole: 'SUPERADMIN' })
+    await claimInvite(tokenHash)
+    const user = await db.user.create({ data: { name: 'Sahip', email: 'sahip@x.com' } })
+
+    const r = await applyInvite(inviteId, user.id)
+
+    expect(r.ok).toBe(true)
+    const updatedUser = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(updatedUser.globalRole).toBe('SUPERADMIN')
+  })
+
+  it('MEMBER daveti kademeyi değiştirmez', async () => {
+    const { inviteId, tokenHash } = await seedInvite({ globalRole: 'MEMBER' })
+    await claimInvite(tokenHash)
+    const user = await db.user.create({ data: { name: 'Düz', email: 'duz@x.com' } })
+
+    await applyInvite(inviteId, user.id)
+
+    const updatedUser = await db.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(updatedUser.globalRole).toBe('MEMBER')
   })
 
   it('bilinmeyen davet id için NOT_FOUND döner', async () => {

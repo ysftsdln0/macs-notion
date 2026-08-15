@@ -74,7 +74,10 @@ export default async function AdminPage() {
 
       <section className="space-y-3">
         <SectionHeading>Yeni davet</SectionHeading>
-        <CreateInviteForm channels={channels.map((c) => ({ id: c.id, name: c.name }))} />
+        <CreateInviteForm
+          channels={channels.map((c) => ({ id: c.id, name: c.name }))}
+          canGrantSuperadmin={actor.globalRole === 'SUPERADMIN'}
+        />
       </section>
 
       <section className="space-y-2">

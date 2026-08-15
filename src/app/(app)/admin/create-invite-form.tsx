@@ -10,10 +10,18 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 
-export function CreateInviteForm({ channels }: { channels: { id: string; name: string }[] }) {
+type InviteGlobalRole = 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
+
+export function CreateInviteForm({
+  channels,
+  canGrantSuperadmin,
+}: {
+  channels: { id: string; name: string }[]
+  canGrantSuperadmin: boolean
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [globalRole, setGlobalRole] = useState<'ADMIN' | 'MEMBER'>('MEMBER')
+  const [globalRole, setGlobalRole] = useState<InviteGlobalRole>('MEMBER')
   const [channelId, setChannelId] = useState<string>('none')
   const [channelRole, setChannelRole] = useState<'LEAD' | 'MEMBER'>('MEMBER')
   const [error, setError] = useState<string | null>(null)
@@ -53,11 +61,14 @@ export function CreateInviteForm({ channels }: { channels: { id: string; name: s
       <form className="flex flex-wrap items-end gap-3" onSubmit={handleSubmit}>
         <div className="space-y-1">
           <Label>Global rol</Label>
-          <Select value={globalRole} onValueChange={(v) => setGlobalRole(v as 'ADMIN' | 'MEMBER')}>
+          <Select value={globalRole} onValueChange={(v) => setGlobalRole(v as InviteGlobalRole)}>
             <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="MEMBER">Üye</SelectItem>
               <SelectItem value="ADMIN">Yönetici</SelectItem>
+              {/* Seçeneği gizlemek yetkilendirme değil, kolaylıktır — asıl
+                  kapı invites.ts'in authorize bloğunda. */}
+              {canGrantSuperadmin && <SelectItem value="SUPERADMIN">Sistem sahibi</SelectItem>}
             </SelectContent>
           </Select>
         </div>
