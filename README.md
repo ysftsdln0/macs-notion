@@ -80,7 +80,7 @@ Docker (yalnızca yerel Postgres için).
    ```
 
    Konsola bir kerelik bir davet linki basılır; onu açıp Google ile giriş
-   yaparsan kurucu admin olursun.
+   yaparsan sistem sahibi (SUPERADMIN) olursun.
 
 ### Prisma CLI ve `.env.local`
 
@@ -202,14 +202,28 @@ host'a veya internete açık bir portu yok).
 
 4. **`/opt/macs/.env` dosyasını oluştur** (bu dosya `.env.local` DEĞİLDİR —
    `docker compose`'un kendi `.env`'i, `.env.example`'ın "Production"
-   bölümündeki değişkenleri karşılar; gitignore'da, sunucuda elle doldurulur):
+   bölümündeki değişkenleri karşılar; gitignore'da, sunucuda elle doldurulur).
+
+   Önce iki sırrı üret ve çıktılarını not al:
 
    ```bash
-   POSTGRES_PASSWORD=$(openssl rand -base64 24)
+   openssl rand -base64 24   # POSTGRES_PASSWORD için
+   openssl rand -base64 32   # AUTH_SECRET için
+   ```
+
+   Sonra dosyayı, HER satırı literal metin olacak şekilde doldur — Compose
+   `.env` dosyasında `$(...)` gibi bir kabuk ifadesini ÇALIŞTIRMAZ, olduğu
+   gibi değer sayar: `POSTGRES_PASSWORD=$(openssl rand -base64 24)` yazarsan
+   Postgres'in şifresi harfiyen o dize olur, `DATABASE_URL` ayrıştırılamaz,
+   `migrate` başarısız çıkar, `web` hiç başlamaz ve kurtarma veritabanı
+   volume'unu (`docker compose down -v`) silmeyi gerektirir:
+
+   ```bash
+   POSTGRES_PASSWORD=<yukarıdaki ilk openssl çıktısı>
    DOMAIN=kulubun-alan-adi.com
    GH_OWNER=<ghcr imajlarını yayınlayan github kullanıcı/organizasyon adı>
    IMAGE_TAG=latest
-   AUTH_SECRET=$(openssl rand -base64 32)
+   AUTH_SECRET=<yukarıdaki ikinci openssl çıktısı>
    # AUTH_URL mutlaka gerçek https alan adına işaret etmeli — compose.yml
    # bunu web container'ına aynen geçirir ve her davet linki bundan üretilir
    # (src/server/invites.ts). localhost'ta bırakmak her daveti kırar.
@@ -224,27 +238,38 @@ host'a veya internete açık bir portu yok).
    otomatik sağlanır, ayrıca eklemene gerek yok.
 
 6. **`main`'e push et.** `ci.yml` (tsc, lint, vitest, playwright) geçerse
-   `deploy.yml` otomatik tetiklenir (`workflow_run`): `macs-web` ve
-   `macs-migrate` imajlarını build edip GHCR'a push eder, sonra SSH ile
-   `/opt/macs`'e girip
+   `deploy.yml` otomatik tetiklenir (`workflow_run`): `macs-web`,
+   `macs-migrate` ve `macs-collab` imajlarını build edip GHCR'a push eder,
+   sonra SSH ile `/opt/macs`'e girip
 
    ```bash
-   docker compose pull web migrate
+   git pull
+   docker compose pull web migrate collab
    docker compose up -d
+   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+   docker image prune -f
    ```
 
-   çalıştırır. Compose bağımlılık sırası (`depends_on` + `condition:
-   service_completed_successfully`) `db` sağlıklı olduktan sonra `migrate`'i
-   çalıştırıp bitirir, ardından `web`'i başlatır; `caddy` `web`'e bağımlıdır
-   ve alan adı için sertifikayı ilk istekte otomatik alır.
+   çalıştırır. `git pull` şart: `compose.yml` ve `Caddyfile` imajların İÇİNDE
+   değil bu sunucudaki git checkout'ta yaşıyor (adım 1) — atlanırsa yeni
+   imajlar eski konfigürasyonla ayağa kalkar. `caddy reload` de şart:
+   `Caddyfile` bir bind mount olduğu için içeriği Compose'un değişiklik
+   tespitine hiç girmez, `up -d` container'ı "up-to-date" görüp dokunmadan
+   bırakır ve Caddy 2 kendi config dosyasını izlemez. Compose bağımlılık
+   sırası (`depends_on` + `condition: service_completed_successfully`) `db`
+   sağlıklı olduktan sonra `migrate`'i çalıştırıp bitirir, ardından `web`'i
+   başlatır; `caddy` `web`'e bağımlıdır ve alan adı için sertifikayı ilk
+   istekte otomatik alır.
 
-7. **Doğrula infrastructure:**
+7. **Altyapıyı doğrula:**
    - `https://<DOMAIN>` açılışta `/login`'e yönlenmeli
    - `docker compose ps` — `caddy`, `web`, `collab`, `db` hepsi `Up`, `migrate`
      `Exited (0)`
-   
+
    İlk sistem sahibini oluşturduktan sonra (bkz. aşağıdaki bölüm), ek doğrulamalar:
-   - `/admin` → **Roller** bölümünde üç sistem rolü (`Yönetim Kurulu`, `Genel Sekreter`, `İnsan Kaynakları`) listelenmeli
+   - `/admin/roles` sayfasında (`/admin` → **Roller** → "Rolleri yönet") üç
+     sistem rolü listelenmeli: `Yönetim Kurulu`, `Genel Sekreter`,
+     `İnsan Kaynakları`
    - Bir doküman oluştur, ikinci sekmede aynı dokümanı aç: yazdığın satır anında görünmeli — collab zinciri (COLLAB_URL → Caddy `/collab` → Hocuspocus) uçtan uca çalışıyor.
 
 ### İlk sistem sahibini oluşturma (tek seferlik)
@@ -286,7 +311,7 @@ docker run --rm -it \
 (`macs_default`, Compose'un `/opt/macs` dizin adından türettiği varsayılan ağ
 adıdır; emin değilsen `docker network ls` ile doğrula.) Konsola basılan
 linki aç, Google ile giriş yap — sistem sahibi olursun ve ilk kanalı kendin
-açarsın. Girdikten sonra, yukarıdaki "Doğrula infrastructure" bölümündeki
+açarsın. Girdikten sonra, yukarıdaki "Altyapıyı doğrula" bölümündeki
 ek doğrulama adımlarını tamamla (roller panel ve iki sekmeli doküman testi).
 
 ### Yedekleme ve geri yükleme
@@ -327,7 +352,7 @@ adımları uygula.
 
 ```
 compose.yml                     prod: caddy + web + collab + migrate + db
-compose.dev.yml                 dev: yalnızca db (web host'ta pnpm dev ile)
+compose.dev.yml                 dev: db + collab (web host'ta pnpm dev ile)
 Caddyfile                       reverse proxy + otomatik HTTPS
 Dockerfile                      web/migrate imajları (multi-stage, standalone çıktı)
 .env.example                    tüm ortam değişkenleri, gerçek sır yok
@@ -336,7 +361,7 @@ Dockerfile                      web/migrate imajları (multi-stage, standalone �
 scripts/backup.sh               gecelik yedekleme (db + uploads + offsite)
 
 prisma/schema.prisma            veri modeli
-prisma/seed.ts                  ilk admin daveti (bkz. yukarıdaki runbook)
+prisma/seed.ts                  ilk sistem sahibi daveti (bkz. yukarıdaki runbook)
 
 src/lib/auth/policy.ts          can(actor, action, resource) — tek yetki noktası
 src/server/*.ts                 server action'lar ('use server')
