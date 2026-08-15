@@ -175,9 +175,10 @@ ekran dışına taşırıp sürükleme hedefini erişilemez kılıyordu.
 ## Production runbook
 
 Tek bir VPS üzerinde Docker Compose ile self-hosted: `caddy` (reverse proxy +
-otomatik HTTPS), `web` (Next.js), `migrate` (kısa ömürlü, şemayı uygulayıp
-çıkar), `db` (Postgres 16, yalnızca Docker ağı içinde erişilebilir — host'a
-veya internete açık bir portu yok).
+otomatik HTTPS), `web` (Next.js), `collab` (Hocuspocus — canlı doküman
+düzenleme, Caddy `/collab` altında proxy'ler), `migrate` (kısa ömürlü, şemayı
+uygulayıp çıkar), `db` (Postgres 16, yalnızca Docker ağı içinde erişilebilir —
+host'a veya internete açık bir portu yok).
 
 ### İlk deploy
 
@@ -237,17 +238,33 @@ veya internete açık bir portu yok).
    çalıştırıp bitirir, ardından `web`'i başlatır; `caddy` `web`'e bağımlıdır
    ve alan adı için sertifikayı ilk istekte otomatik alır.
 
-7. **Doğrula:** `https://<DOMAIN>` açılışta `/login`'e yönlenmeli.
+7. **Doğrula:**
+   - `https://<DOMAIN>` açılışta `/login`'e yönlenmeli
+   - `docker compose ps` — `caddy`, `web`, `collab`, `db` hepsi `Up`, `migrate`
+     `Exited (0)`
+   - Sistem sahibi olarak girdikten sonra `/admin` → **Roller** bölümünde üç
+     sistem rolü listelenmeli
+   - **Bir doküman aç ve ikinci bir sekmede aynı dokümanı aç: yazdığın satır
+     karşı sekmede anında görünmeli.** Bu, collab zincirinin (COLLAB_URL →
+     Caddy `/collab` → Hocuspocus) uçtan uca çalıştığının tek gerçek kanıtıdır;
+     kırık olsaydı editör sessizce yerel kalırdı.
 
-### İlk admini oluşturma (tek seferlik)
+### İlk sistem sahibini oluşturma (tek seferlik)
 
-Kulüpte henüz hiç kullanıcı yokken `pnpm db:seed`
-(`prisma/seed.ts` → `seedBootstrapInvite`), ADMIN yetkili, kanalsız, tek
-kullanımlık bir davet üretir ve linkini konsola basar — bu link **bir kez**
-gösterilir ve kimse çağırmazsa 7 gün sonra kendiliğinden geçersizleşir. İkinci
-bir çalıştırma, sistemde zaten bir kullanıcı ya da bekleyen bir kurulum
-daveti varsa hiçbir şey üretmez (bkz. `prisma/seed.ts` içindeki gerekçe) —
-yani yanlışlıkla iki kez çalıştırmak güvenlidir.
+Kulüpte henüz hiç kullanıcı yokken `pnpm db:seed` (`prisma/seed.ts` →
+`seedBootstrapInvite`), **SUPERADMIN** yetkili, kanalsız, tek kullanımlık bir
+davet üretir ve linkini konsola basar — bu link **bir kez** gösterilir ve kimse
+çağırmazsa 7 gün sonra kendiliğinden geçersizleşir. İkinci bir çalıştırma,
+sistemde zaten bir kullanıcı ya da bekleyen bir kurulum daveti varsa hiçbir şey
+üretmez, yani yanlışlıkla iki kez çalıştırmak güvenlidir.
+
+Kademe ADMIN değil SUPERADMIN, çünkü rol paneli (`/admin/roles`) ve kademe
+dağıtma yetkisi o kapının arkasındadır: ADMIN yetkili bir kurulum daveti,
+kimsenin rolleri yönetemediği bir sistem kurardı.
+
+**Sistem rolleri seed'den gelmez** — `Yönetim Kurulu`, `Genel Sekreter` ve
+`İnsan Kaynakları` bir veri migration'ıyla oluşur, yani `migrate` job'ı her
+deploy'da onları hazır eder. `pnpm db:seed` yalnızca kurulum davetini üretir.
 
 Şu an image pipeline'ındaki `migrate` imajı bilinçli olarak minimal (yalnızca
 `prisma migrate deploy` çalıştıracak kadar — Dockerfile'daki not: "prisma
