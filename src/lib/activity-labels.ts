@@ -7,6 +7,7 @@ import {
   Hash,
   Heart,
   MessageSquare,
+  ShieldCheck,
   UserPlus,
   Users,
   Wallet,
@@ -84,6 +85,7 @@ export function describeActivityVerb(verb: string): string {
 const namespaceIcons: Record<string, LucideIcon> = {
   channel: Hash,
   member: Users,
+  role: ShieldCheck,
   invite: Gift,
   document: FileText,
   comment: MessageSquare,

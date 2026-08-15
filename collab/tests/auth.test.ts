@@ -121,6 +121,6 @@ describe('rol izinleri collab tarafında', () => {
 
     const r = await authorizeDocument(makeToken(outsider.id), doc.id)
 
-    expect(r).not.toEqual({ ok: true, actorId: outsider.id })
+    expect(r.ok).toBe(false)
   })
 })

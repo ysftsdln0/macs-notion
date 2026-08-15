@@ -32,6 +32,12 @@ export default async function MembersPage() {
   // yalnızca atama yapabilene çekilir.
   const canManageRoles = can(actor, 'role:manage', { kind: 'role' })
   const assignableRoles = canManageRoles ? await listRoles() : []
+  // Kademe değiştirmek üye yönetiminden ayrı ve daha dar bir kapı: yalnızca
+  // SUPERADMIN. Bayrak burada hesaplanıp geçirilir ki arayüz kullanılamayacak
+  // bir kontrol göstermesin.
+  const canChangeGlobalRole = can(actor, 'member:updateRole', {
+    kind: 'member', id: actor.id, targetGlobalRole: actor.globalRole,
+  })
 
   const members = await db.user.findMany({
     // Pasif üyeler daha önce bu sorgudan tamamen dışlanıyordu — bu, uygulama
@@ -147,6 +153,7 @@ export default async function MembersPage() {
                       isActive={m.isActive}
                       isSelf={m.id === actor.id}
                       canManageMembers={canManageMembers}
+                      canChangeGlobalRole={canChangeGlobalRole}
                       canManageRoles={canManageRoles}
                       assignableRoles={assignableRoles.map((role) => ({
                         id: role.id,

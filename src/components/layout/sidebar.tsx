@@ -31,6 +31,7 @@ export async function Sidebar({ actor }: { actor: Actor }) {
       canCreateChannel={canCreateChannel}
       canSeeBudget={canSeeBudget}
       canSeeAdminPanel={has(actor, 'INVITE_MANAGE')}
+      canSeeTrash={has(actor, 'TRASH_MANAGE')}
     />
   )
 }

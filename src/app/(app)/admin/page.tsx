@@ -76,7 +76,7 @@ export default async function AdminPage() {
         <SectionHeading>Yeni davet</SectionHeading>
         <CreateInviteForm
           channels={channels.map((c) => ({ id: c.id, name: c.name }))}
-          canGrantSuperadmin={actor.globalRole === 'SUPERADMIN'}
+          canGrantElevatedRole={actor.globalRole === 'SUPERADMIN'}
         />
       </section>
 

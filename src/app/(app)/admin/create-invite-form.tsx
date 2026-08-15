@@ -14,10 +14,10 @@ type InviteGlobalRole = 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
 
 export function CreateInviteForm({
   channels,
-  canGrantSuperadmin,
+  canGrantElevatedRole,
 }: {
   channels: { id: string; name: string }[]
-  canGrantSuperadmin: boolean
+  canGrantElevatedRole: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -65,10 +65,11 @@ export function CreateInviteForm({
             <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="MEMBER">Üye</SelectItem>
-              <SelectItem value="ADMIN">Yönetici</SelectItem>
-              {/* Seçeneği gizlemek yetkilendirme değil, kolaylıktır — asıl
-                  kapı invites.ts'in authorize bloğunda. */}
-              {canGrantSuperadmin && <SelectItem value="SUPERADMIN">Sistem sahibi</SelectItem>}
+              {/* Kademe dağıtan seçenekler yalnızca SUPERADMIN'e gösterilir.
+                  Gizlemek yetkilendirme değil, kolaylıktır — asıl kapı
+                  invites.ts'in authorize bloğunda. */}
+              {canGrantElevatedRole && <SelectItem value="ADMIN">Yönetici</SelectItem>}
+              {canGrantElevatedRole && <SelectItem value="SUPERADMIN">Sistem sahibi</SelectItem>}
             </SelectContent>
           </Select>
         </div>

@@ -66,8 +66,40 @@ describe('createInvite', () => {
     expect(await db.invite.count()).toBe(0)
   })
 
-  // Aksi halde INVITE_MANAGE taşıyan biri kendine sistem sahibi daveti üretip
-  // bağlantıyı kendi açarak sınırsız yetkiye çıkardı.
+  // Kademe dağıtmak SUPERADMIN kapısıdır. Davet ikinci kapıdır ve kapalı
+  // tutulmazsa birincisini anlamsız kılar: /invite/<token> sayfası oturum açmış
+  // kullanıcıya daveti KENDİSİ için uygulatır, yani INVITE_MANAGE taşıyan düz
+  // bir üye kendine ADMIN daveti üretip iki tıkta ADMIN olabilirdi.
+  it('INVITE_MANAGE taşıyan düz üye ADMIN daveti üretemez', async () => {
+    actorRef.current = hr.id
+
+    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
+    expect(await db.invite.count()).toBe(0)
+  })
+
+  it('ADMIN bile ADMIN daveti üretemez — kademe dağıtımı SUPERADMIN’de', async () => {
+    actorRef.current = admin.id
+
+    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
+    expect(await db.invite.count()).toBe(0)
+  })
+
+  it('SUPERADMIN, ADMIN daveti üretebilir', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+
+    expect(r.ok).toBe(true)
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.globalRole).toBe('ADMIN')
+  })
+
   it('SUPERADMIN olmayan, SUPERADMIN daveti üretemez', async () => {
     actorRef.current = hr.id
 

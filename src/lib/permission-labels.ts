@@ -19,9 +19,12 @@ export const permissionGroupLabels: Record<PermissionGroup, string> = {
 }
 
 export const permissionLabels: Record<Permission, { group: PermissionGroup; label: string }> = {
+  // Etiket kapsamı OLDUĞU GİBİ yazar: `document:read` bu izni PRIVATE doküman
+  // dalından ÖNCE kontrol eder, yani kişisel özel dokümanlar da açılır. Yalnızca
+  // "koordinatörlük içeriği" demek, izni dağıtanı yanıltırdı.
   CONTENT_READ_ALL: {
     group: 'content',
-    label: 'Tüm koordinatörlüklerin içeriğini görür',
+    label: 'Tüm koordinatörlüklerin içeriğini ve üyelerin kişisel dokümanlarını görür',
   },
   CONTENT_WRITE_ALL: {
     group: 'content',
@@ -51,9 +54,11 @@ export const permissionLabels: Record<Permission, { group: PermissionGroup; labe
     group: 'management',
     label: 'Her koordinatörlüğün ayarını ve üyelerini yönetir',
   },
+  // Çöp kutusu kanal sınırı tanımaz: arşivlenmiş dokümanlar her
+  // koordinatörlükten gelir, üye olunmayan PRIVATE kanallarınkiler dahil.
   TRASH_MANAGE: {
     group: 'management',
-    label: 'Çöp kutusunu görür ve kalıcı siler',
+    label: 'Her koordinatörlüğün çöp kutusunu görür, geri yükler ve kalıcı siler',
   },
 }
 

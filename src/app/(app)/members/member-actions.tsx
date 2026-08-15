@@ -19,7 +19,7 @@ const roleLabels: Record<GlobalRole, string> = {
 
 export function MemberActions({
   userId, name, globalRole, isActive, isSelf,
-  canManageMembers, canManageRoles, assignableRoles, assignedRoleIds,
+  canManageMembers, canChangeGlobalRole, canManageRoles, assignableRoles, assignedRoleIds,
 }: {
   userId: string
   name: string
@@ -27,6 +27,7 @@ export function MemberActions({
   isActive: boolean
   isSelf: boolean
   canManageMembers: boolean
+  canChangeGlobalRole: boolean
   canManageRoles: boolean
   assignableRoles: { id: string; name: string }[]
   assignedRoleIds: string[]
@@ -97,21 +98,27 @@ export function MemberActions({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      {canManageMembers && (
+      {(canManageMembers || canChangeGlobalRole) && (
         <div className="flex items-center gap-2">
-          <Select
-            value={globalRole}
-            onValueChange={(value) => handleRoleChange(value as GlobalRole)}
-            disabled={pending}
-          >
-            <SelectTrigger size="sm"><SelectValue>{roleLabels[globalRole]}</SelectValue></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="MEMBER">Üye</SelectItem>
-              <SelectItem value="ADMIN">Yönetici</SelectItem>
-              <SelectItem value="SUPERADMIN">Sistem sahibi</SelectItem>
-            </SelectContent>
-          </Select>
-          {isActive ? (
+          {/* Kademe seçici yalnızca onu gerçekten kullanabilene gösterilir.
+              MEMBER_MANAGE'e bağlıyken hem İK rolü hem Başkan canlı görünen
+              bir açılır liste görüyor, her seçim FORBIDDEN dönüyordu —
+              modelin bilerek vermediği bir gücü vaat eden bir arayüz. */}
+          {canChangeGlobalRole && (
+            <Select
+              value={globalRole}
+              onValueChange={(value) => handleRoleChange(value as GlobalRole)}
+              disabled={pending}
+            >
+              <SelectTrigger size="sm"><SelectValue>{roleLabels[globalRole]}</SelectValue></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MEMBER">Üye</SelectItem>
+                <SelectItem value="ADMIN">Yönetici</SelectItem>
+                <SelectItem value="SUPERADMIN">Sistem sahibi</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {!canManageMembers ? null : isActive ? (
             <Button
               type="button"
               variant="destructive"
