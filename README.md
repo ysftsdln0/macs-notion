@@ -72,7 +72,7 @@ Docker (yalnızca yerel Postgres için).
    pnpm dev
    ```
 
-6. İlk kullanıcıyı (kurucu admin) oluştur — bkz. aşağıdaki "İlk admini
+6. İlk kullanıcıyı (sistem sahibi) oluştur — bkz. aşağıdaki "İlk sistem sahibini
    oluşturma" bölümü, yerel ortamda da aynı komut çalışır:
 
    ```bash
@@ -238,16 +238,14 @@ host'a veya internete açık bir portu yok).
    çalıştırıp bitirir, ardından `web`'i başlatır; `caddy` `web`'e bağımlıdır
    ve alan adı için sertifikayı ilk istekte otomatik alır.
 
-7. **Doğrula:**
+7. **Doğrula infrastructure:**
    - `https://<DOMAIN>` açılışta `/login`'e yönlenmeli
    - `docker compose ps` — `caddy`, `web`, `collab`, `db` hepsi `Up`, `migrate`
      `Exited (0)`
-   - Sistem sahibi olarak girdikten sonra `/admin` → **Roller** bölümünde üç
-     sistem rolü listelenmeli
-   - **Bir doküman aç ve ikinci bir sekmede aynı dokümanı aç: yazdığın satır
-     karşı sekmede anında görünmeli.** Bu, collab zincirinin (COLLAB_URL →
-     Caddy `/collab` → Hocuspocus) uçtan uca çalıştığının tek gerçek kanıtıdır;
-     kırık olsaydı editör sessizce yerel kalırdı.
+   
+   İlk sistem sahibini oluşturduktan sonra (bkz. aşağıdaki bölüm), ek doğrulamalar:
+   - `/admin` → **Roller** bölümünde üç sistem rolü (`Yönetim Kurulu`, `Genel Sekreter`, `İnsan Kaynakları`) listelenmeli
+   - Bir doküman oluştur, ikinci sekmede aynı dokümanı aç: yazdığın satır anında görünmeli — collab zinciri (COLLAB_URL → Caddy `/collab` → Hocuspocus) uçtan uca çalışıyor.
 
 ### İlk sistem sahibini oluşturma (tek seferlik)
 
@@ -287,8 +285,9 @@ docker run --rm -it \
 
 (`macs_default`, Compose'un `/opt/macs` dizin adından türettiği varsayılan ağ
 adıdır; emin değilsen `docker network ls` ile doğrula.) Konsola basılan
-linki aç, Google ile giriş yap — kurucu admin olursun ve ilk kanalı kendin
-açarsın.
+linki aç, Google ile giriş yap — sistem sahibi olursun ve ilk kanalı kendin
+açarsın. Girdikten sonra, yukarıdaki "Doğrula infrastructure" bölümündeki
+ek doğrulama adımlarını tamamla (roller panel ve iki sekmeli doküman testi).
 
 ### Yedekleme ve geri yükleme
 
@@ -327,7 +326,7 @@ adımları uygula.
 ## Dizin haritası
 
 ```
-compose.yml                     prod: caddy + web + migrate + db
+compose.yml                     prod: caddy + web + collab + migrate + db
 compose.dev.yml                 dev: yalnızca db (web host'ta pnpm dev ile)
 Caddyfile                       reverse proxy + otomatik HTTPS
 Dockerfile                      web/migrate imajları (multi-stage, standalone çıktı)
