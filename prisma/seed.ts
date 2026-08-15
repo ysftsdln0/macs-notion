@@ -9,67 +9,6 @@ type SeedResult =
   | { ok: false; reason: string }
 
 /**
- * Kulübün örgüt şemasındaki kademeler. `isSystem: true` oldukları için
- * silinemezler ve adları değişmez — bu seed ve kod onları adlarıyla tanır.
- * İzinleri panelden değiştirilebilir: kulübün Yönetim Kurulu'na ne verdiğini
- * zamanla değiştirmesi meşru bir ihtiyaç.
- *
- * Rol YÖNETİMİ bilerek listede yok — o bir izin değil, SUPERADMIN kapısı.
- * İzinleri dağıtan yetkinin kendisi ayarlanabilir olsaydı, onu taşıyan
- * herkes kendine her şeyi yazabilirdi.
- */
-const SYSTEM_ROLES = [
-  {
-    name: 'Yönetim Kurulu',
-    slug: 'yonetim-kurulu',
-    color: '#2563eb',
-    position: 1,
-    permissions: [
-      'CONTENT_READ_ALL', 'CONTENT_WRITE_ALL',
-      'BUDGET_READ_ALL', 'BUDGET_WRITE_ALL',
-      'MEMBER_MANAGE', 'INVITE_MANAGE',
-      'CHANNEL_CREATE', 'CHANNEL_MANAGE_ALL', 'TRASH_MANAGE',
-    ],
-  },
-  {
-    name: 'Genel Sekreter',
-    slug: 'genel-sekreter',
-    color: '#7c3aed',
-    position: 2,
-    permissions: ['CONTENT_READ_ALL', 'INVITE_MANAGE', 'TRASH_MANAGE'],
-  },
-  {
-    name: 'İnsan Kaynakları',
-    slug: 'insan-kaynaklari',
-    color: '#059669',
-    position: 3,
-    permissions: ['MEMBER_MANAGE', 'INVITE_MANAGE'],
-  },
-] as const
-
-/**
- * Her deploy'da çalışabilir olmalı: var olan rolün izinlerini EZMEZ, yalnızca
- * eksik olanı ekler. Aksi halde panelden yapılan her ayar bir sonraki
- * deploy'da sessizce geri alınırdı.
- */
-export async function seedSystemRoles(): Promise<void> {
-  for (const role of SYSTEM_ROLES) {
-    const existing = await db.role.findUnique({ where: { slug: role.slug } })
-    if (existing) continue
-    await db.role.create({
-      data: {
-        name: role.name,
-        slug: role.slug,
-        color: role.color,
-        position: role.position,
-        isSystem: true,
-        permissions: [...role.permissions],
-      },
-    })
-  }
-}
-
-/**
  * Kurulum daveti: sahipsiz (`createdById: null`), SUPERADMIN yetkili, kanalsız.
  * Davetli linki açıp Google ile girer; davet onu SUPERADMIN yapar ve ilk kanalı
  * kendisi açar. Böylece ilk kullanıcı da herkesle aynı yoldan girer — giriş
@@ -143,11 +82,6 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
 }
 
 async function main() {
-  // Roller kullanıcıdan bağımsız: kurulum daveti üretilmese bile (sistemde
-  // zaten kullanıcı varsa) eksik sistem rolleri tamamlanmalı.
-  await seedSystemRoles()
-  console.log('Sistem rolleri hazır (Yönetim Kurulu, Genel Sekreter, İnsan Kaynakları).')
-
   const result = await seedBootstrapInvite()
   if (!result.ok) {
     console.log(result.reason)

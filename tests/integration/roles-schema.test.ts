@@ -75,4 +75,15 @@ describe('rol şeması', () => {
     const user = await db.user.create({ data: { name: 'Sahip', globalRole: 'SUPERADMIN' } })
     expect(user.globalRole).toBe('SUPERADMIN')
   })
+
+  // Sıralamayı değiştiren bir arayüz yok; `position` yalnızca rozet sırası.
+  // Unique kısıt, sabit pozisyonlu sistem rolü eklemeyi (ve e2e'de rastgele
+  // pozisyon üretmeyi) zorunlu kılıyordu, karşılığında hiçbir şey korumuyordu.
+  it('iki rol aynı pozisyonu paylaşabilir', async () => {
+    await db.role.create({ data: { name: 'Bir', slug: 'bir', position: 1 } })
+
+    await expect(
+      db.role.create({ data: { name: 'İki', slug: 'iki', position: 1 } }),
+    ).resolves.toMatchObject({ position: 1 })
+  })
 })
