@@ -42,6 +42,16 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # sshd standart portta dinlemiyor; action'ın varsayılanı 22 olduğu
+          # için bu satır olmadan adım imajlar başarıyla push edildikten sonra
+          # "connect: connection refused" ile düşer — yani deploy'un tamamı
+          # kırmızı, sunucuda ise hiçbir şey değişmemiş olur.
+          #
+          # Literal yazmak yerine secret: depo public, port numarasını açıkta
+          # tutmanın hiçbir faydası yok. Secret tanımlı değilse boş string
+          # gider ve action yine 22'yi dener, o yüzden README adım 5 bunu
+          # diğer üçüyle birlikte zorunlu sayar.
+          port: ${{ secrets.VPS_PORT }}
           script: |
             # Çok satırlı uzak script'in çıkış kodu SON komutunkidir — burada
             # `docker image prune -f`, ki o pratikte her zaman 0 döner. `set -e`

@@ -238,9 +238,22 @@ Trafik: `tarayıcı → Plesk nginx (TLS) → 127.0.0.1:3100` ve `/collab` için
    ```
 
 5. **GitHub repo secrets'ı ekle** (Settings → Secrets and variables →
-   Actions) — `deploy.yml`'in SSH adımı bunları kullanır:
-   `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. `GITHUB_TOKEN` GHCR'a push için
-   otomatik sağlanır, ayrıca eklemene gerek yok.
+   Actions → **Repository secrets**) — `deploy.yml`'in SSH adımı bunları
+   kullanır: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PORT`.
+   `GITHUB_TOKEN` GHCR'a push için otomatik sağlanır, ayrıca eklemene gerek
+   yok.
+
+   Aynı sayfadaki **Environment** secret'ları BURAYA UYMAZ: bir job onları
+   ancak `environment:` anahtarını bildirirse görür, `deploy.yml`'de öyle bir
+   satır yok. Yanlışlıkla oraya girilirse `${{ secrets.VPS_HOST }}` boş string
+   olur ve SSH adımı, üç imaj başarıyla push edildikten sonra hiçbir şey
+   söylemeden düşer.
+
+   `VPS_SSH_KEY` **parolasız** bir private key'in tamamıdır —
+   `-----BEGIN OPENSSH PRIVATE KEY-----` ve `-----END ...` satırları dahil,
+   `.pub` dosyası değil; public kısmı sunucuda `~/.ssh/authorized_keys`
+   içinde olmalı. `VPS_PORT` sshd'nin gerçekten dinlediği porttur
+   (`ss -tlnp | grep sshd`); 22 bile olsa açıkça yazılır.
 
 6. **`main`'e push et.** `ci.yml` (tsc, lint, vitest, playwright) geçerse
    `deploy.yml` otomatik tetiklenir (`workflow_run`): `macs-web`,
