@@ -212,9 +212,18 @@ Trafik: `tarayıcı → Plesk nginx (TLS) → 127.0.0.1:3100` ve `/collab` için
    Önce iki sırrı üret ve çıktılarını not al:
 
    ```bash
-   openssl rand -base64 24   # POSTGRES_PASSWORD için
+   openssl rand -hex 24      # POSTGRES_PASSWORD için
    openssl rand -base64 32   # AUTH_SECRET için
    ```
+
+   Şifrede `-hex`, sırda `-base64`: ikisi de aynı entropiyi verir ama
+   `compose.yml` şifreyi bir URL'in içine gömüyor
+   (`postgresql://macs:${POSTGRES_PASSWORD}@db:5432/macs`) ve base64
+   alfabesindeki `/` orada geçersiz — ayrıştırıcı kalanını yol sanar,
+   `migrate` bağlanamaz, `web` hiç başlamaz. 32 karakterlik bir base64
+   dizesinde en az bir `/` çıkma olasılığı yaklaşık %40, yani hata
+   "bazen" ortaya çıkar ve `.env`'e bakan biri sorunu göremez. `AUTH_SECRET`
+   hiçbir URL'e girmediği için bu kısıt onda yok.
 
    Sonra dosyayı, HER satırı literal metin olacak şekilde doldur — Compose
    `.env` dosyasında `$(...)` gibi bir kabuk ifadesini ÇALIŞTIRMAZ, olduğu
@@ -283,8 +292,17 @@ Trafik: `tarayıcı → Plesk nginx (TLS) → 127.0.0.1:3100` ve `/collab` için
    değişirse Plesk panelinden elle güncellenmelidir (bkz. adım 6).
 
 6. **Plesk'i uygulamaya yönlendir.** Plesk panel → alan adı → **Apache & nginx
-   Ayarları** → "Ek nginx yönergeleri" alanına `deploy/plesk-nginx.conf`
-   dosyasının tamamını yapıştır ve kaydet. Plesk nginx'i kendisi yeniden yükler.
+   Ayarları**.
+
+   Yapıştırmadan ÖNCE aynı sayfadaki **"Proxy mode"** ve **"Smart static files
+   processing"** kutularını kapat. Açık kaldıklarında Plesk kendi `location /`
+   bloğunu üretir ve dosyadaki blokla çakışır; kaydetmeye çalışınca panel
+   `nginx: [emerg] duplicate location "/"` der ve yönergeleri hiç kabul etmez.
+   Bu alan adında Apache/PHP devre dışı kalır — tek iş Node uygulamasını
+   proxy'lemek olduğu için istenen de budur.
+
+   Sonra "Ek nginx yönergeleri" alanına `deploy/plesk-nginx.conf` dosyasının
+   tamamını yapıştır ve kaydet. Plesk nginx'i kendisi yeniden yükler.
 
    Dosya iki şey yapar: kökü `127.0.0.1:3100`'e (uygulama), `/collab` yolunu
    `127.0.0.1:1234`'e (Hocuspocus) proxy'ler. `/collab` bloğundaki
@@ -332,8 +350,24 @@ sunucuda bu deponun tam bir checkout'u olduğu için (adım 1), en basit yol
 projeyi geçici bir Node container'ı içinde, `db` servisiyle aynı Docker ağına
 bağlayıp çalıştırmaktır:
 
+Aşağıdaki komut `.env`'deki iki değeri kullanır, ama `docker run` `.env`'i
+kendiliğinden okumaz — değerleri önce kabuğa almak gerekir:
+
 ```bash
 cd /opt/macs
+POSTGRES_PASSWORD=$(grep -m1 '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)
+DOMAIN=$(grep -m1 '^DOMAIN=' .env | cut -d= -f2-)
+```
+
+`set -a; . ./.env; set +a` yerine bilerek `grep`: sourcing bu değerleri
+kabuğa EXPORT eder ve Compose'un öncelik sırasında kabuk ortamı `.env`
+dosyasının önünde gelir. O kabukta sonradan `.env`'i düzeltip
+`docker compose up -d --force-recreate` çalıştırdığında container eski,
+export edilmiş değeri alır — dosya doğru göründüğü halde uygulama yanlış
+değerle ayağa kalkar (ör. yanlış `AUTH_GOOGLE_ID` ile Google `invalid_client`
+döner). Yukarıdaki iki satır export etmez, o tuzağı hiç kurmaz.
+
+```bash
 docker run --rm -it \
   --network macs_default \
   -v "$PWD":/repo -w /repo \
