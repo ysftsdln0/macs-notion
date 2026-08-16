@@ -23,7 +23,9 @@ export default async function LoginPage({
   return (
     <AuthShell>
       <div className="space-y-6 text-center">
-        <AuthHeading title={'MACS’e hoş geldin'}>
+        {/* Marka kabuğun kendisinde (cam kartın tepesi); başlıkta MACS'i
+            tekrarlamak wordmark'ın hemen altında gereksiz eko yapıyordu. */}
+        <AuthHeading title="Hoş geldin">
           Kulüp çalışma alanına girmek için davet linkine ihtiyacın var.
         </AuthHeading>
         {message && (

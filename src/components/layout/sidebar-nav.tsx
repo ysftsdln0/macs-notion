@@ -25,6 +25,7 @@ import { cn, pickByHash } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Sidebar as SidebarShell, DesktopSidebar, useSidebar } from '@/components/ui/sidebar'
 import { Brand } from './brand'
+import { LogoutButton } from './logout-button'
 import { ThemeToggle } from './theme-toggle'
 
 // Sidebar kanalın yalnızca bu alanlarını okur; dar tutmak server→client
@@ -159,6 +160,7 @@ function MobileNav(props: NavProps) {
             </Link>
           )}
           <ThemeToggle />
+          <LogoutButton />
         </div>
       </header>
 
@@ -336,17 +338,21 @@ function NavBody({
         )}
       </div>
 
-      {/* Tema anahtarı masaüstünde buraya, mobilde üst çubuğa düşer. */}
+      {/* Tema anahtarı ve çıkış masaüstünde buraya, mobilde üst çubuğa düşer.
+          "Görünüm" etiketi çıkışın gelişiyle kaldırıldı: iki farklı eylemi tek
+          başlık altında toplamak yanlış ad olurdu, ikisinin de aria-label'ı
+          zaten var. Daralmış 60px rayda iki ikon yan yana sığmaz; container
+          query ile alt alta dizilirler (bkz. railCollapsed notu — React
+          state'i değil gerçek genişlik sürer). */}
       <div
         className={cn(
           'hidden shrink-0 items-center justify-between border-t border-sidebar-border px-3.5 py-2.5 md:flex',
-          railCollapsed
+          railCollapsed,
+          '@max-[64px]:flex-col @max-[64px]:gap-1'
         )}
       >
-        <SectionLabel expanded={expanded} className="px-2.5 text-xs normal-case">
-          Görünüm
-        </SectionLabel>
         <ThemeToggle />
+        <LogoutButton />
       </div>
     </div>
   )

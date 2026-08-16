@@ -4,11 +4,10 @@ import { Sparkles, type LucideIcon } from 'lucide-react'
 /**
  * Boş durum kompozisyonu: ikon rozeti + başlık + açıklama + tek eylem.
  *
- * Aurora bilerek yok. Bir sayfada birden fazla boş durum olabiliyor (örn. görev
- * + etkinlik bölümleri aynı anda boş) ve her biri iki `blur-3xl` katmanı ile
- * 28sn'lik sonsuz animasyon açardı. Rozetin `animate-float-slow`'u tek başına
- * yeterli hareket; renk zaten `bg-primary/10` + `ring-primary/20` üzerinden
- * geliyor.
+ * Dekoratif arka plan (glow vb.) bilerek yok. Bir sayfada birden fazla boş
+ * durum olabiliyor (örn. görev + etkinlik bölümleri aynı anda boş). Rozetin
+ * `animate-float-slow`'u tek başına yeterli hareket; renk zaten
+ * `bg-primary/10` + `ring-primary/20` üzerinden geliyor.
  */
 export function EmptyState({
   title,

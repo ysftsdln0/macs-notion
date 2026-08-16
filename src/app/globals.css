@@ -53,13 +53,17 @@
   /* İki ayrı iş, iki ayrı token — ikisi de aynı lacivert ailesinde.
      --brand  : marka işareti (logo kutusu, wordmark noktası). Koyu lacivert.
      --primary: etkileşim aksanı (aktif nav, buton, link, focus, chart-1).
-     Ayrım şart: --brand'in L'si (0.1915) --foreground'unkiyle (0.21) neredeyse
+     Ayrım şart: --brand'in L'si (0.186) --foreground'unkiyle (0.21) neredeyse
      aynı, kontrastları 1.04:1 — yani aksan olarak kullanıldığında "biraz koyu
      yazı"dan başka bir şey okumuyordu. --primary bir kademe açık: gövdeye karşı
      2.68:1 ayrışır, zemine karşı 6.34:1, sidebar zeminine karşı 6.07:1 (AA).
      Aksan değişimi hâlâ tek satır — --ring/--chart-1/--sidebar-* hepsi okur. */
-  --brand: oklch(0.1915 0.0517 262.2);
-  --primary: oklch(0.48 0.11 262);
+  /* --brand kulüp logosundan (public/macs-logo.png) örneklendi: #0b1224.
+     --primary ve aksan tonları aynı hue'ya (267) hizalı — site logoyla aynı
+     lacivert aileden okunsun diye. L/C değerleri korunduğu için yukarıdaki
+     kontrast oranları pratikte değişmez (hue kayması ±5° L'yi etkilemez). */
+  --brand: oklch(0.186 0.039 266.6);
+  --primary: oklch(0.48 0.11 267);
   --background: oklch(0.985 0.003 240);
   --foreground: oklch(0.21 0.02 260);
   --card: oklch(1 0 0);
@@ -71,8 +75,8 @@
   --secondary-foreground: oklch(0.21 0.02 260);
   --muted: oklch(0.96 0.006 240);
   --muted-foreground: oklch(0.48 0.02 260);
-  --accent: oklch(0.955 0.02 255);
-  --accent-foreground: oklch(0.35 0.07 255);
+  --accent: oklch(0.955 0.02 260);
+  --accent-foreground: oklch(0.35 0.07 260);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.006 240);
   --input: oklch(0.92 0.006 240);
@@ -93,8 +97,8 @@
   --sidebar-foreground: oklch(0.21 0.02 260);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: oklch(0.985 0.002 250);
-  --sidebar-accent: oklch(0.94 0.015 255);
-  --sidebar-accent-foreground: oklch(0.3 0.05 255);
+  --sidebar-accent: oklch(0.94 0.015 260);
+  --sidebar-accent-foreground: oklch(0.3 0.05 260);
   --sidebar-border: oklch(0.912 0.006 240);
   --sidebar-ring: var(--primary);
 }
@@ -103,7 +107,7 @@
   /* Koyu modda ayrım gereksiz: koyu lacivert bu zeminde zaten okunmaz, o yüzden
      marka işareti de etkileşim aksanı da ailenin açık tonunu kullanır. Açık
      modda ayrık, koyu modda aynı — ikisi de kasıtlı. */
-  --brand: oklch(0.6541 0.1137 263.6);
+  --brand: oklch(0.6541 0.1137 267);
   --primary: var(--brand);
   --background: oklch(0.155 0.015 240);
   --foreground: oklch(0.96 0.008 240);
@@ -116,8 +120,8 @@
   --secondary-foreground: oklch(0.96 0.008 240);
   --muted: oklch(0.26 0.018 240);
   --muted-foreground: oklch(0.72 0.015 240);
-  --accent: oklch(0.29 0.045 255);
-  --accent-foreground: oklch(0.9 0.04 250);
+  --accent: oklch(0.29 0.045 260);
+  --accent-foreground: oklch(0.9 0.04 255);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -131,8 +135,8 @@
   --sidebar-foreground: oklch(0.96 0.008 240);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: oklch(0.16 0.03 260);
-  --sidebar-accent: oklch(0.29 0.045 255);
-  --sidebar-accent-foreground: oklch(0.9 0.04 250);
+  --sidebar-accent: oklch(0.29 0.045 260);
+  --sidebar-accent-foreground: oklch(0.9 0.04 255);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: var(--primary);
 }
@@ -169,13 +173,6 @@
 }
 
 /* ---------- Motion: keyframes ---------- */
-@keyframes aurora-drift {
-  0% { transform: translate3d(-8%, -4%, 0) scale(1); }
-  25% { transform: translate3d(6%, 8%, 0) scale(1.12); }
-  50% { transform: translate3d(-4%, 12%, 0) scale(0.96); }
-  75% { transform: translate3d(8%, -6%, 0) scale(1.08); }
-  100% { transform: translate3d(-8%, -4%, 0) scale(1); }
-}
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -195,6 +192,19 @@
 @keyframes float-slow {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
+}
+@keyframes card-shrink {
+  from { opacity: 0; transform: scale(4); }
+  10% { opacity: 1; }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes blur-reveal {
+  from { opacity: 0; filter: blur(12px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@keyframes light-sweep {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
 }
 
 /* ---------- Motion: utility classes ----------
@@ -217,11 +227,22 @@
   .animate-float-slow {
     animation: float-slow 8s ease-in-out infinite;
   }
-  .animate-aurora {
-    /* `will-change` bilerek yok: çalışan animasyon katmanı zaten kendi
-       yükseltir, sabit bırakmak reduced-motion'da animasyon kapalıyken bile
-       GPU katmanı ayırtırdı. */
-    animation: aurora-drift 28s ease-in-out infinite;
+  /* Auth kartının girişi: boş cam tam ekran ölçekten (scale 4, viewport'u
+     kaplar) mevcut boyutuna küçülür. Vitrin animasyonu, yalnızca auth
+     kabuğunda ve rota başına bir kez oynar. İçerik bu sırada gizli
+     (blur-reveal gecikmeli) — küçülen kartın içinde dev yazı görünmesin. */
+  .animate-card-in {
+    animation: card-shrink 2.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Metinlerin blur'dan belirmesi. `filter: blur` pahalı — tek seferlik
+     vitrin dışında, hele sonsuz döngüde KULLANMA. */
+  .animate-blur-reveal {
+    animation: blur-reveal 1.4s ease-out both;
+  }
+  /* Kart üst kenarındaki ışık çizgisi: ortadan kenarlara açılır. */
+  .animate-light-sweep {
+    transform-origin: center;
+    animation: light-sweep 1s ease-out both;
   }
   .animate-shimmer {
     position: relative;
@@ -249,7 +270,9 @@
   .animate-fade-in,
   .animate-pop,
   .animate-float-slow,
-  .animate-aurora,
+  .animate-card-in,
+  .animate-blur-reveal,
+  .animate-light-sweep,
   .animate-shimmer::after {
     animation: none;
   }
