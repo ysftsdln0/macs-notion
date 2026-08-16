@@ -1,14 +1,8 @@
+# TLS ve reverse proxy bu dosyanın işi DEĞİL: sunucuda Plesk kurulu ve kendi
+# nginx'i 80/443'ü tutuyor, sertifikayı da o yönetiyor. Bir zamanlar burada
+# duran caddy servisi o portlara bağlanmaya çalışıp deploy'u düşürürdü.
+# Plesk'e yapıştırılacak proxy yönergeleri depoda: deploy/plesk-nginx.conf.
 services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports: ['80:80', '443:443']
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on: [web]
-
   # Kısa ömürlü migration job'ı. Şemayı uygular ve çıkar; web ona bağlıdır.
   # Migration'ın web container'ının CMD'sinde olmamasının iki sebebi:
   # (1) prisma CLI ayrı bir devDependency paketidir, standalone imajda yoktur;
@@ -30,6 +24,9 @@ services:
       # web ile AYNI sır olmalı: web collab token'ını imzalar, collab onu
       # doğrular. Farklı olursa her websocket bağlantısı reddedilir.
       AUTH_SECRET: ${AUTH_SECRET}
+    # YALNIZCA 127.0.0.1'e bağlanır. Öneki düşürmek container'ı doğrudan
+    # internete açar ve Plesk'in TLS'ini baypas eden şifresiz bir yol bırakır.
+    ports: ['127.0.0.1:1234:1234']
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -50,6 +47,9 @@ services:
       # aksi halde COLLAB_URL sessizce "wss:///collab" gibi geçersiz kalırdı.
       COLLAB_URL: wss://${DOMAIN:?DOMAIN gerekli - .env dosyasında tanımlı olmalı}/collab
       UPLOAD_DIR: /data/uploads
+    # YALNIZCA 127.0.0.1'e bağlanır — gerekçe collab servisinde yazılı.
+    # Konteyner içinde Next 3000'de dinler; Plesk nginx'i 3100'e proxy'ler.
+    ports: ['127.0.0.1:3100:3000']
     volumes:
       # scripts/backup.sh bu volume'u adıyla yedekler (macs_uploads).
       - uploads:/data/uploads
@@ -73,5 +73,3 @@ services:
 volumes:
   pgdata:
   uploads:
-  caddy_data:
-  caddy_config:

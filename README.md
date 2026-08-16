@@ -12,7 +12,7 @@ sınırlıdır.
 **Teknoloji:** Next.js 16 (App Router), React 19, TypeScript (strict),
 Tailwind CSS + shadcn/ui, Prisma 6 + Postgres 16, Auth.js v5 (yalnızca Google
 sağlayıcısı, veritabanı oturumları), Zod 4, Vitest + Playwright, Docker
-Compose + Caddy, GitHub Actions + GHCR.
+Compose (Plesk nginx arkasında), GitHub Actions + GHCR.
 
 ---
 
@@ -174,27 +174,32 @@ ekran dışına taşırıp sürükleme hedefini erişilemez kılıyordu.
 
 ## Production runbook
 
-Tek bir VPS üzerinde Docker Compose ile self-hosted: `caddy` (reverse proxy +
-otomatik HTTPS), `web` (Next.js), `collab` (Hocuspocus — canlı doküman
-düzenleme, Caddy `/collab` altında proxy'ler), `migrate` (kısa ömürlü, şemayı
-uygulayıp çıkar), `db` (Postgres 16, yalnızca Docker ağı içinde erişilebilir —
-host'a veya internete açık bir portu yok).
+Sunucuda **Plesk** kurulu ve 80/443'ü onun nginx'i tutuyor; TLS sertifikasını da
+Plesk yönetiyor. Docker tarafı bu yüzden yalnızca uygulamayı çalıştırır ve
+konteynerlerini **sadece `127.0.0.1`'e** açar — internete açık tek kapı Plesk'tir.
+
+Servisler: `web` (Next.js, `127.0.0.1:3100`), `collab` (Hocuspocus — canlı
+doküman düzenleme, `127.0.0.1:1234`), `migrate` (kısa ömürlü, şemayı uygulayıp
+çıkar), `db` (Postgres 16, host'a hiç port açmaz).
+
+Trafik: `tarayıcı → Plesk nginx (TLS) → 127.0.0.1:3100` ve `/collab` için
+`→ 127.0.0.1:1234`. Proxy yönergeleri depoda: `deploy/plesk-nginx.conf`.
 
 ### İlk deploy
 
-1. **VPS'i hazırla.** Docker Engine + Compose plugin kurulu bir sunucu (ör.
-   Ubuntu). Bu depoyu sunucuda `/opt/macs` altına klonla — `compose.yml`,
-   `Caddyfile` ve `scripts/backup.sh` buradan çalışır, `deploy.yml`
-   workflow'u da SSH ile bu dizine girip `docker compose` çalıştırır.
+1. **Sunucuyu hazırla.** Docker Engine + Compose plugin kurulu, Plesk'li bir
+   sunucu. Bu depoyu `/opt/macs` altına klonla — `compose.yml` ve
+   `scripts/backup.sh` buradan çalışır, `deploy.yml` workflow'u da SSH ile bu
+   dizine girip `docker compose` çalıştırır.
 
    ```bash
    git clone <bu-depo> /opt/macs
    cd /opt/macs
    ```
 
-2. **DNS.** `DOMAIN` için A/AAAA kaydını bu sunucunun IP'sine yönlendir —
-   Caddy, `Caddyfile`'daki `{$DOMAIN}` için otomatik TLS sertifikası bu
-   kaydın doğru olmasına bağlı çıkarır.
+2. **Plesk'te alan adı.** Alan adı Plesk'te tanımlı ve Let's Encrypt
+   sertifikası alınmış olmalı (Plesk panel → SSL/TLS Sertifikaları). DNS
+   A/AAAA kaydı bu sunucuyu göstermeli — sertifika buna bağlı çıkar.
 
 3. **Google OAuth istemcisi.** Google Cloud Console'da bir OAuth 2.0 Client
    ID (Web application) oluştur, yetkili yönlendirme URI'si:
@@ -243,34 +248,51 @@ host'a veya internete açık bir portu yok).
    sonra SSH ile `/opt/macs`'e girip
 
    ```bash
+   set -e
    git pull
    docker compose pull web migrate collab
    docker compose up -d
-   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
    docker image prune -f
    ```
 
-   çalıştırır. `git pull` şart: `compose.yml` ve `Caddyfile` imajların İÇİNDE
-   değil bu sunucudaki git checkout'ta yaşıyor (adım 1) — atlanırsa yeni
-   imajlar eski konfigürasyonla ayağa kalkar. `caddy reload` de şart:
-   `Caddyfile` bir bind mount olduğu için içeriği Compose'un değişiklik
-   tespitine hiç girmez, `up -d` container'ı "up-to-date" görüp dokunmadan
-   bırakır ve Caddy 2 kendi config dosyasını izlemez. Compose bağımlılık
-   sırası (`depends_on` + `condition: service_completed_successfully`) `db`
-   sağlıklı olduktan sonra `migrate`'i çalıştırıp bitirir, ardından `web`'i
-   başlatır; `caddy` `web`'e bağımlıdır ve alan adı için sertifikayı ilk
-   istekte otomatik alır.
+   çalıştırır. `git pull` şart: `compose.yml` imajların İÇİNDE değil bu
+   sunucudaki git checkout'ta yaşıyor (adım 1) — atlanırsa yeni imajlar eski
+   konfigürasyonla ayağa kalkar ve deploy yeşil geçtiği halde değişiklik
+   sunucuya ulaşmaz. `set -e` de şart: çok satırlı uzak script'in çıkış kodu
+   son komutunkidir (`docker image prune -f`, pratikte hep 0), yani onsuz
+   düşen bir `git pull` bile deploy'u yeşil gösterirdi.
+
+   Compose bağımlılık sırası (`depends_on` + `condition:
+   service_completed_successfully`) `db` sağlıklı olduktan sonra `migrate`'i
+   çalıştırıp bitirir, ardından `web` ve `collab`'ı başlatır.
+
+   **Plesk tarafı bu script'e dahil değildir.** `deploy/plesk-nginx.conf`
+   değişirse Plesk panelinden elle güncellenmelidir (bkz. adım 6).
+
+6. **Plesk'i uygulamaya yönlendir.** Plesk panel → alan adı → **Apache & nginx
+   Ayarları** → "Ek nginx yönergeleri" alanına `deploy/plesk-nginx.conf`
+   dosyasının tamamını yapıştır ve kaydet. Plesk nginx'i kendisi yeniden yükler.
+
+   Dosya iki şey yapar: kökü `127.0.0.1:3100`'e (uygulama), `/collab` yolunu
+   `127.0.0.1:1234`'e (Hocuspocus) proxy'ler. `/collab` bloğundaki
+   `Upgrade`/`Connection` başlıkları **atlanamaz** — onlarsız nginx websocket
+   yükseltmesini geçirmez, sayfa ve editör açılır ama hiçbir şey eşitlenmez ve
+   hiçbir yerde hata görünmez.
 
 7. **Altyapıyı doğrula:**
    - `https://<DOMAIN>` açılışta `/login`'e yönlenmeli
-   - `docker compose ps` — `caddy`, `web`, `collab`, `db` hepsi `Up`, `migrate`
+   - `docker compose ps` — `web`, `collab`, `db` hepsi `Up`, `migrate`
      `Exited (0)`
+   - `curl -sI http://127.0.0.1:3100` sunucuda 200 ya da 307 dönmeli (Plesk
+     devrede olmasa bile uygulamanın ayakta olduğunu ayırt eder)
 
    İlk sistem sahibini oluşturduktan sonra (bkz. aşağıdaki bölüm), ek doğrulamalar:
    - `/admin/roles` sayfasında (`/admin` → **Roller** → "Rolleri yönet") üç
      sistem rolü listelenmeli: `Yönetim Kurulu`, `Genel Sekreter`,
      `İnsan Kaynakları`
-   - Bir doküman oluştur, ikinci sekmede aynı dokümanı aç: yazdığın satır anında görünmeli — collab zinciri (COLLAB_URL → Caddy `/collab` → Hocuspocus) uçtan uca çalışıyor.
+   - Bir doküman oluştur, ikinci sekmede aynı dokümanı aç: yazdığın satır anında
+     görünmeli — collab zinciri (COLLAB_URL → Plesk nginx `/collab` →
+     Hocuspocus) uçtan uca çalışıyor.
 
 ### İlk sistem sahibini oluşturma (tek seferlik)
 
@@ -351,9 +373,9 @@ adımları uygula.
 ## Dizin haritası
 
 ```
-compose.yml                     prod: caddy + web + collab + migrate + db
+compose.yml                     prod: web + collab + migrate + db (127.0.0.1'e)
 compose.dev.yml                 dev: db + collab (web host'ta pnpm dev ile)
-Caddyfile                       reverse proxy + otomatik HTTPS
+deploy/plesk-nginx.conf         Plesk'e yapıştırılan proxy yönergeleri
 Dockerfile                      web/migrate imajları (multi-stage, standalone çıktı)
 .env.example                    tüm ortam değişkenleri, gerçek sır yok
 .github/workflows/ci.yml        tsc + lint + vitest + playwright
