@@ -135,4 +135,37 @@ describe('createInvite', () => {
     const invite = await db.invite.findFirstOrThrow()
     expect(invite.globalRole).toBe('SUPERADMIN')
   })
+
+  it('seçilen süre daveti o kadar yaşatır', async () => {
+    actorRef.current = admin.id
+
+    const r = await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', duration: 'HOUR',
+    })
+
+    expect(r.ok).toBe(true)
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.expiresAt!.getTime() - Date.now()).toBeLessThan(61 * 60 * 1000)
+    expect(invite.expiresAt!.getTime() - Date.now()).toBeGreaterThan(59 * 60 * 1000)
+  })
+
+  it('FOREVER süresiz davet üretir', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', duration: 'FOREVER',
+    })
+
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.expiresAt).toBeNull()
+  })
+
+  it('süre verilmezse 7 gündür', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({ globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER' })
+
+    const invite = await db.invite.findFirstOrThrow()
+    expect(invite.expiresAt!.getTime() - Date.now()).toBeGreaterThan(6.9 * 864e5)
+  })
 })

@@ -3,6 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createInvite } from '@/server/invites'
+import {
+  DEFAULT_INVITE_DURATION,
+  INVITE_DURATION_LABELS,
+  type InviteDuration,
+} from '@/lib/auth/invite-token'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +29,7 @@ export function CreateInviteForm({
   const [globalRole, setGlobalRole] = useState<InviteGlobalRole>('MEMBER')
   const [channelId, setChannelId] = useState<string>('none')
   const [channelRole, setChannelRole] = useState<'LEAD' | 'MEMBER'>('MEMBER')
+  const [duration, setDuration] = useState<InviteDuration>(DEFAULT_INVITE_DURATION)
   const [error, setError] = useState<string | null>(null)
   // Ham davet bağlantısı yalnızca burada, bir kez tutulur — sunucuya
   // geri gönderilmez, loglanmaz, veritabanında yalnızca hash'i durur.
@@ -40,6 +46,7 @@ export function CreateInviteForm({
         globalRole,
         channelId: channelId === 'none' ? null : channelId,
         channelRole,
+        duration,
       })
       if (!result.ok) {
         setError(result.error.message)
@@ -97,6 +104,17 @@ export function CreateInviteForm({
             </Select>
           </div>
         )}
+        <div className="space-y-1">
+          <Label>Geçerlilik</Label>
+          <Select value={duration} onValueChange={(v) => setDuration(v as InviteDuration)}>
+            <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(INVITE_DURATION_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? 'Oluşturuluyor…' : 'Davet oluştur'}
         </Button>

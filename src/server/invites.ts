@@ -5,7 +5,13 @@ import { db } from '@/lib/db'
 import { defineAction } from '@/lib/action'
 import { getActor } from '@/lib/auth/session'
 import { can } from '@/lib/auth/policy'
-import { createInviteToken, inviteExpiry } from '@/lib/auth/invite-token'
+import {
+  createInviteToken,
+  DEFAULT_INVITE_DURATION,
+  INVITE_DURATIONS,
+  inviteExpiry,
+  type InviteDuration,
+} from '@/lib/auth/invite-token'
 import { recordActivity } from '@/lib/activity'
 
 export const createInvite = defineAction({
@@ -13,6 +19,9 @@ export const createInvite = defineAction({
     globalRole: z.enum(['SUPERADMIN', 'ADMIN', 'MEMBER']).default('MEMBER'),
     channelId: z.string().cuid().nullable().default(null),
     channelRole: z.enum(['LEAD', 'MEMBER']).default('MEMBER'),
+    duration: z
+      .enum(Object.keys(INVITE_DURATIONS) as [InviteDuration, ...InviteDuration[]])
+      .default(DEFAULT_INVITE_DURATION),
   }),
   getActor,
   authorize: async ({ actor, input }) => {
@@ -39,7 +48,7 @@ export const createInvite = defineAction({
         globalRole: input.globalRole,
         channelId: input.channelId,
         channelRole: input.channelRole,
-        expiresAt: inviteExpiry(),
+        expiresAt: inviteExpiry(input.duration),
         createdById: actor.id,
         // Bugünkü davranış açıkça yazılır: davet hâlâ tek kullanımlık.
         // Girdi olarak seçilebilir hâle gelmesi Task 3'te.
