@@ -24,7 +24,7 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   },
 }))
 
-const { createInvite } = await import('@/server/invites')
+const { createInvite, setInviteDisabled } = await import('@/server/invites')
 
 let superadmin: { id: string }
 let admin: { id: string }
@@ -311,5 +311,47 @@ describe('createInvite — kademe daveti sınırları', () => {
     })
 
     expect(r.ok).toBe(true)
+  })
+})
+
+describe('setInviteDisabled', () => {
+  it('daveti duraklatır ve devam ettirir', async () => {
+    actorRef.current = admin.id
+    const created = await createInvite({ globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER' })
+    if (!created.ok) throw new Error('davet üretilemedi')
+
+    const paused = await setInviteDisabled({ inviteId: created.data.id, disabled: true })
+    expect(paused.ok).toBe(true)
+    expect((await db.invite.findUniqueOrThrow({ where: { id: created.data.id } })).disabledAt).not.toBeNull()
+
+    const resumed = await setInviteDisabled({ inviteId: created.data.id, disabled: false })
+    expect(resumed.ok).toBe(true)
+    expect((await db.invite.findUniqueOrThrow({ where: { id: created.data.id } })).disabledAt).toBeNull()
+  })
+
+  it('her iki yön için activity yazar', async () => {
+    actorRef.current = admin.id
+    const created = await createInvite({ globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER' })
+    if (!created.ok) throw new Error('davet üretilemedi')
+
+    await setInviteDisabled({ inviteId: created.data.id, disabled: true })
+    await setInviteDisabled({ inviteId: created.data.id, disabled: false })
+
+    const verbs = (await db.activity.findMany({ where: { entityId: created.data.id }, orderBy: { createdAt: 'asc' } }))
+      .map((a) => a.verb)
+    expect(verbs).toEqual(['invite.created', 'invite.disabled', 'invite.enabled'])
+  })
+
+  it('izinsiz üye daveti duraklatamaz', async () => {
+    actorRef.current = admin.id
+    const created = await createInvite({ globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER' })
+    if (!created.ok) throw new Error('davet üretilemedi')
+
+    const plain = await db.user.create({ data: { name: 'Düz2' } })
+    actorRef.current = plain.id
+
+    const r = await setInviteDisabled({ inviteId: created.data.id, disabled: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
   })
 })

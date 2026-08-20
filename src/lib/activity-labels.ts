@@ -41,6 +41,10 @@ const activityVerbLabels: Record<string, string> = {
   'role.unassigned': 'bir üyenin rolünü aldı',
   'invite.created': 'bir davet oluşturdu',
   'invite.revoked': 'bir daveti iptal etti',
+  // 'invite.revoked' kaldırılmadı: kalıcı iptalin yerini duraklat/devam aldı
+  // ama geçmiş kayıtlar hâlâ o fiili taşıyor.
+  'invite.disabled': 'bir daveti duraklattı',
+  'invite.enabled': 'bir daveti yeniden açtı',
   'invite.accepted': 'bir daveti kabul etti',
   'document.created': 'bir doküman oluşturdu',
   'document.updated': 'bir dokümanı güncelledi',

@@ -6,7 +6,7 @@ import { can } from '@/lib/auth/policy'
 import { EmptyState } from '@/components/state/empty-state'
 import { PageContainer, PageHeader, SectionHeading } from '@/components/layout/page'
 import { CreateInviteForm } from './create-invite-form'
-import { RevokeInviteButton } from './revoke-invite-button'
+import { ToggleInviteButton } from './toggle-invite-button'
 
 type InviteRow = {
   maxUses: number | null
@@ -26,8 +26,9 @@ function inviteStatus(invite: InviteRow): string {
   return 'bekliyor'
 }
 
-function isPending(invite: InviteRow): boolean {
-  return inviteStatus(invite) === 'bekliyor'
+function canToggle(invite: InviteRow): boolean {
+  const status = inviteStatus(invite)
+  return status === 'bekliyor' || status === 'duraklatıldı'
 }
 
 // Bu route'a KASITLI OLARAK loading.tsx eklenmez: notFound() render sırasında
@@ -102,7 +103,9 @@ export default async function AdminPage() {
                   {i.label ? `${i.label} · ` : ''}
                   {i.channel?.name ?? 'Kanalsız'} · {inviteStatus(i)}
                 </span>
-                {isPending(i) && <RevokeInviteButton inviteId={i.id} />}
+                {canToggle(i) && (
+                  <ToggleInviteButton inviteId={i.id} disabled={i.disabledAt !== null} />
+                )}
               </li>
             ))}
           </ul>

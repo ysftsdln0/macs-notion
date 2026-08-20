@@ -30,3 +30,8 @@ describe('describeActivityVerb', () => {
     expect(describeActivityVerb('some.unknownVerb')).toMatch(/işlem/i)
   })
 })
+
+it('davet duraklat/devam fiillerinin Türkçe karşılığı vardır', () => {
+  expect(describeActivityVerb('invite.disabled')).toBe('bir daveti duraklattı')
+  expect(describeActivityVerb('invite.enabled')).toBe('bir daveti yeniden açtı')
+})

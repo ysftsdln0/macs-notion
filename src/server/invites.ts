@@ -94,19 +94,25 @@ export const createInvite = defineAction({
   },
 })
 
-export const revokeInvite = defineAction({
-  input: z.object({ inviteId: z.string().cuid() }),
+/**
+ * Daveti kapatır ya da yeniden açar. Kalıcı iptal DEĞİL: çok kullanımlı bir
+ * bağlantıyı geçici olarak durdurup devam ettirmek gerekiyor. Kullanılmış
+ * slotlar geri gelmez — devam ettirilen davet kalan kontenjanından sürer.
+ */
+export const setInviteDisabled = defineAction({
+  input: z.object({ inviteId: z.string().cuid(), disabled: z.boolean() }),
   getActor,
   authorize: async ({ actor }) => ({ allowed: can(actor, 'invite:revoke', { kind: 'invite' }) }),
   handler: async ({ actor, input }) => {
     await db.invite.update({
       where: { id: input.inviteId },
-      data: { disabledAt: new Date() },
+      data: { disabledAt: input.disabled ? new Date() : null },
     })
     await recordActivity(db, {
-      actorId: actor.id, verb: 'invite.revoked',
+      actorId: actor.id,
+      verb: input.disabled ? 'invite.disabled' : 'invite.enabled',
       entityType: 'Invite', entityId: input.inviteId,
     })
-    return { id: input.inviteId }
+    return { id: input.inviteId, disabled: input.disabled }
   },
 })
