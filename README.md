@@ -23,7 +23,7 @@ Docker (yalnızca yerel Postgres için).
 
 > Bu makinede 5432 ve 3000 portları başka bir proje tarafından tutulduğu
 > için bu depo bilerek farklı portlar kullanır: **Postgres host portu
-> 5433**, **web dev portu 3100**. Container içi portlar (5432, 3000) ve
+> 5435**, **web dev portu 3100**. Container içi portlar (5432, 3000) ve
 > CI/production portları bundan etkilenmez.
 
 1. Bağımlılıkları kur:
@@ -45,7 +45,7 @@ Docker (yalnızca yerel Postgres için).
    application", yetkili yönlendirme URI'si
    `http://localhost:3100/api/auth/callback/google`). `DATABASE_URL` ve
    `AUTH_URL` zaten dosyada doğru yerel değerlerle geliyor (sırasıyla port
-   5433 ve 3100'e işaret eder). `.env.local` gitignore'dadır, asla commit
+   5435 ve 3100'e işaret eder). `.env.local` gitignore'dadır, asla commit
    edilmez.
 
 3. Yerel Postgres'i ve collab (Hocuspocus) sunucusunu ayağa kaldır — web
@@ -123,7 +123,7 @@ bir dosyanın sonuna eklenmez.
 ```bash
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint .
-pnpm test         # vitest — unit + integration, gerçek Postgres'e karşı (5433)
+pnpm test         # vitest — unit + integration, gerçek Postgres'e karşı (5435)
 pnpm test:watch   # vitest --watch
 pnpm build        # next build (standalone çıktı)
 pnpm test:e2e     # playwright — build alır, standalone sunucuyu 3100'de başlatır, uçtan uca koşar
@@ -140,7 +140,7 @@ start:standalone` ile ayağa kaldırıp 3100 portunda test eder — bu portu
 `pnpm dev` zaten tutuyorsa önce onu durdur.
 
 **Testler AYRI bir veritabanı kullanır.** Aynı Postgres örneği
-(`compose.dev.yml`, port 5433) ama veritabanı adı `_test` ekiyle değişir:
+(`compose.dev.yml`, port 5435) ama veritabanı adı `_test` ekiyle değişir:
 geliştirme `macs`, testler `macs_test`. Dönüşümü
 `tests/helpers/test-database-url.ts` yapar; vitest, collab vitest ve
 Playwright config'leri bunu çağırır, Playwright ayrıca `DATABASE_URL`i
