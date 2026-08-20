@@ -8,6 +8,7 @@ import { can } from '@/lib/auth/policy'
 import {
   createInviteToken,
   DEFAULT_INVITE_DURATION,
+  ELEVATED_MAX_DURATION_MS,
   INVITE_DURATIONS,
   inviteExpiry,
   type InviteDuration,
@@ -23,7 +24,33 @@ export const createInvite = defineAction({
       .enum(Object.keys(INVITE_DURATIONS) as [InviteDuration, ...InviteDuration[]])
       .default(DEFAULT_INVITE_DURATION),
     maxUses: z.number().int().positive().nullable().default(1),
-  }),
+  })
+    /**
+     * Davet, kademe dağıtmanın ikinci kapısıdır: `/invite/<token>` sayfası
+     * oturum açmış kullanıcıya daveti KENDİSİ için uygular. Bu yüzden
+     * kademe taşıyan bir bağlantı ne çok kullanımlı ne de uzun ömürlü
+     * olabilir — sızarsa tek hesapla ve tek günle sınırlı kalmalı.
+     */
+    .superRefine((value, ctx) => {
+      if (value.globalRole === 'MEMBER') return
+
+      if (value.maxUses !== 1) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['maxUses'],
+          message: 'Kademe daveti yalnızca tek kişilik olabilir.',
+        })
+      }
+
+      const ms = INVITE_DURATIONS[value.duration]
+      if (ms === null || ms > ELEVATED_MAX_DURATION_MS) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['duration'],
+          message: 'Kademe daveti en fazla 24 saat geçerli olabilir.',
+        })
+      }
+    }),
   getActor,
   authorize: async ({ actor, input }) => {
     if (!can(actor, 'invite:create', { kind: 'invite' })) return { allowed: false }

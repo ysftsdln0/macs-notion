@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createInvite } from '@/server/invites'
 import {
   DEFAULT_INVITE_DURATION,
+  ELEVATED_MAX_DURATION_MS,
   INVITE_DURATION_LABELS,
+  INVITE_DURATIONS,
   INVITE_USE_LIMIT_LABELS,
   INVITE_USE_LIMITS,
   type InviteDuration,
@@ -38,6 +40,17 @@ export function CreateInviteForm({
   // geri gönderilmez, loglanmaz, veritabanında yalnızca hash'i durur.
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const elevated = globalRole !== 'MEMBER'
+
+  // Kademe seçildiğinde tek geçerli kombinasyona düşülür. Bu bir yetki
+  // kapısı DEĞİL, kolaylıktır — asıl kural invites.ts'in superRefine'ında.
+  function handleGlobalRoleChange(value: InviteGlobalRole) {
+    setGlobalRole(value)
+    if (value !== 'MEMBER') {
+      setMaxUses(1)
+      setDuration('DAY')
+    }
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -72,7 +85,7 @@ export function CreateInviteForm({
       <form className="flex flex-wrap items-end gap-3" onSubmit={handleSubmit}>
         <div className="space-y-1">
           <Label>Global rol</Label>
-          <Select value={globalRole} onValueChange={(v) => setGlobalRole(v as InviteGlobalRole)}>
+          <Select value={globalRole} onValueChange={(v) => handleGlobalRoleChange(v as InviteGlobalRole)}>
             <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="MEMBER">Üye</SelectItem>
@@ -110,12 +123,22 @@ export function CreateInviteForm({
         )}
         <div className="space-y-1">
           <Label>Geçerlilik</Label>
-          <Select value={duration} onValueChange={(v) => setDuration(v as InviteDuration)}>
+          <Select
+            value={duration}
+            onValueChange={(v) => setDuration(v as InviteDuration)}
+            disabled={elevated}
+          >
             <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {Object.entries(INVITE_DURATION_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
+              {Object.entries(INVITE_DURATION_LABELS)
+                .filter(([value]) => {
+                  if (!elevated) return true
+                  const ms = INVITE_DURATIONS[value as InviteDuration]
+                  return ms !== null && ms <= ELEVATED_MAX_DURATION_MS
+                })
+                .map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -124,6 +147,7 @@ export function CreateInviteForm({
           <Select
             value={maxUses === null ? 'unlimited' : String(maxUses)}
             onValueChange={(v) => setMaxUses(v === 'unlimited' ? null : Number(v))}
+            disabled={elevated}
           >
             <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -139,6 +163,11 @@ export function CreateInviteForm({
           {pending ? 'Oluşturuluyor…' : 'Davet oluştur'}
         </Button>
       </form>
+      {elevated && (
+        <p className="text-xs text-muted-foreground">
+          Kademe daveti tek kişilik ve en fazla 24 saat geçerli olabilir.
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {generatedUrl && (
         <div className="space-y-1 rounded-lg bg-muted p-3">

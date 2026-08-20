@@ -26,6 +26,12 @@ type SeedResult =
  * transaction'da, çakışan taraf P2034 alır. Burada CLI olduğu için (server
  * action değil) P2034 fırlatılmaz, Türkçe `{ ok: false, reason }` olarak
  * döner.
+ *
+ * Kademe daveti sınırları (tek kullanım + 24 saat) `createInvite` action'ının
+ * kuralıdır ve buraya BİLEREK uygulanmaz: kurulum daveti yalnızca boş bir
+ * sistemde üretilir ve deploy ile ilk giriş arasına 24 saatlik bir pencere
+ * koymak kurulumu kırılgan yapar. Tek kullanım kısıtı ise geçerli —
+ * `maxUses: 1` yazılı.
  */
 export async function seedBootstrapInvite(): Promise<SeedResult> {
   const { token, tokenHash } = createInviteToken()

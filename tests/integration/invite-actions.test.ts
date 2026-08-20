@@ -73,7 +73,9 @@ describe('createInvite', () => {
   it('INVITE_MANAGE taşıyan düz üye ADMIN daveti üretemez', async () => {
     actorRef.current = hr.id
 
-    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
+    })
 
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
@@ -83,7 +85,9 @@ describe('createInvite', () => {
   it('ADMIN bile ADMIN daveti üretemez — kademe dağıtımı SUPERADMIN’de', async () => {
     actorRef.current = admin.id
 
-    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
+    })
 
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('FORBIDDEN')
@@ -93,7 +97,9 @@ describe('createInvite', () => {
   it('SUPERADMIN, ADMIN daveti üretebilir', async () => {
     actorRef.current = superadmin.id
 
-    const r = await createInvite({ globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER' })
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
+    })
 
     expect(r.ok).toBe(true)
     const invite = await db.invite.findFirstOrThrow()
@@ -104,7 +110,7 @@ describe('createInvite', () => {
     actorRef.current = hr.id
 
     const r = await createInvite({
-      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER',
+      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
     })
 
     expect(r.ok).toBe(false)
@@ -116,7 +122,7 @@ describe('createInvite', () => {
     actorRef.current = admin.id
 
     const r = await createInvite({
-      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER',
+      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
     })
 
     expect(r.ok).toBe(false)
@@ -128,7 +134,7 @@ describe('createInvite', () => {
     actorRef.current = superadmin.id
 
     const r = await createInvite({
-      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER',
+      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER', duration: 'DAY',
     })
 
     expect(r.ok).toBe(true)
@@ -206,5 +212,73 @@ describe('createInvite', () => {
 
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.code).toBe('VALIDATION')
+  })
+})
+
+describe('createInvite — kademe daveti sınırları', () => {
+  it('ADMIN daveti çok kullanımlı olamaz', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', maxUses: 5, duration: 'DAY',
+    })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.error.code).toBe('VALIDATION')
+      expect(r.error.fields?.maxUses).toBeTruthy()
+    }
+    expect(await db.invite.count()).toBe(0)
+  })
+
+  it('ADMIN daveti sınırsız olamaz', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', maxUses: null, duration: 'DAY',
+    })
+
+    expect(r.ok).toBe(false)
+  })
+
+  it('SUPERADMIN daveti 24 saatten uzun yaşayamaz', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({
+      globalRole: 'SUPERADMIN', channelId: null, channelRole: 'MEMBER', maxUses: 1, duration: 'WEEK',
+    })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.fields?.duration).toBeTruthy()
+  })
+
+  it('ADMIN daveti süresiz olamaz', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', maxUses: 1, duration: 'FOREVER',
+    })
+
+    expect(r.ok).toBe(false)
+  })
+
+  it('sınırlar içindeki ADMIN daveti kabul edilir', async () => {
+    actorRef.current = superadmin.id
+
+    const r = await createInvite({
+      globalRole: 'ADMIN', channelId: null, channelRole: 'MEMBER', maxUses: 1, duration: 'DAY',
+    })
+
+    expect(r.ok).toBe(true)
+  })
+
+  it('MEMBER daveti sınırsız ve süresiz olabilir', async () => {
+    actorRef.current = admin.id
+
+    const r = await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', maxUses: null, duration: 'FOREVER',
+    })
+
+    expect(r.ok).toBe(true)
   })
 })
