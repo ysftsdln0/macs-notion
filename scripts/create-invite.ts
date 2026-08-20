@@ -29,6 +29,8 @@ async function main() {
       channelId: null,
       channelRole: 'MEMBER',
       expiresAt: inviteExpiry(),
+      // null = sınırsız; bu script tek bir admin daveti basmak içindir.
+      maxUses: 1,
     },
   })
   const base = process.env.AUTH_URL ?? 'http://localhost:3100'

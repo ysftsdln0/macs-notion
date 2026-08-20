@@ -25,8 +25,9 @@ beforeEach(async () => {
 
 async function seedInvite(
   overrides: Partial<{
-    expiresAt: Date
-    revokedAt: Date
+    expiresAt: Date | null
+    disabledAt: Date | null
+    maxUses: number | null
     channelId: string | null
     globalRole: 'SUPERADMIN' | 'ADMIN' | 'MEMBER'
   }> = {},
@@ -38,17 +39,22 @@ async function seedInvite(
       globalRole: overrides.globalRole ?? 'MEMBER',
       channelId: 'channelId' in overrides ? overrides.channelId : channelId,
       channelRole: 'MEMBER',
-      expiresAt: overrides.expiresAt ?? new Date(Date.now() + 7 * 864e5),
-      revokedAt: overrides.revokedAt ?? null,
+      expiresAt: 'expiresAt' in overrides ? overrides.expiresAt : new Date(Date.now() + 7 * 864e5),
+      disabledAt: overrides.disabledAt ?? null,
+      maxUses: 'maxUses' in overrides ? overrides.maxUses : 1,
       createdById: adminId,
     },
   })
   return { token, tokenHash, inviteId: invite.id }
 }
 
+async function redemptions(inviteId: string) {
+  return db.inviteRedemption.findMany({ where: { inviteId }, orderBy: { reservedAt: 'asc' } })
+}
+
 describe('consumeInvite', () => {
   it('geçerli daveti kullanır, kanala üye yapar ve daveti işaretler', async () => {
-    const { token } = await seedInvite()
+    const { token, inviteId } = await seedInvite()
     const user = await db.user.create({ data: { name: 'Yeni', email: 'y@x.com' } })
 
     const r = await consumeInvite(token, user.id)
@@ -58,9 +64,10 @@ describe('consumeInvite', () => {
       where: { channelId_userId: { channelId, userId: user.id } },
     })
     expect(membership?.channelRole).toBe('MEMBER')
-    const invite = await db.invite.findFirstOrThrow()
-    expect(invite.usedByUserId).toBe(user.id)
-    expect(invite.usedAt).not.toBeNull()
+    const rows = await redemptions(inviteId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.userId).toBe(user.id)
+    expect(rows[0]?.redeemedAt).not.toBeNull()
   })
 
   it('aynı davet ikinci kez kullanılamaz', async () => {
@@ -84,7 +91,7 @@ describe('consumeInvite', () => {
   })
 
   it('iptal edilmiş daveti reddeder', async () => {
-    const { token } = await seedInvite({ revokedAt: new Date() })
+    const { token } = await seedInvite({ disabledAt: new Date() })
     const user = await db.user.create({ data: { name: 'D', email: 'd@x.com' } })
     const r = await consumeInvite(token, user.id)
     expect(r.ok).toBe(false)
@@ -107,19 +114,7 @@ describe('consumeInvite', () => {
     expect(activity.actorId).toBe(user.id)
   })
 
-  it('aynı token ikinci kez consumeInvite çağrılırsa CONFLICT döner', async () => {
-    const { token } = await seedInvite()
-    const user = await db.user.create({ data: { name: 'G', email: 'g@x.com' } })
-
-    const first = await consumeInvite(token, user.id)
-    const second = await consumeInvite(token, user.id)
-
-    expect(first.ok).toBe(true)
-    expect(second.ok).toBe(false)
-    if (!second.ok) expect(second.error.code).toBe('CONFLICT')
-  })
-
-  it('mevcut kullanıcı ikinci bir daveti başarıyla kullanabilir (usedByUserId artık benzersiz değil)', async () => {
+  it('mevcut kullanıcı ikinci bir daveti başarıyla kullanabilir (redemption satırları invite başına ayrı)', async () => {
     const secondChannel = await db.channel.create({
       data: { name: 'İkinci', slug: 'ikinci', createdById: adminId },
     })
@@ -133,8 +128,10 @@ describe('consumeInvite', () => {
     expect(first).toEqual({ ok: true, data: { channelId } })
     expect(second).toEqual({ ok: true, data: { channelId: secondChannel.id } })
 
-    const usedInvites = await db.invite.findMany({ where: { usedByUserId: user.id } })
-    expect(usedInvites).toHaveLength(2)
+    const usedRedemptions = await db.inviteRedemption.findMany({
+      where: { userId: user.id, redeemedAt: { not: null } },
+    })
+    expect(usedRedemptions).toHaveLength(2)
   })
 
   it('sahiplenme başarısız olunca applyInvite hiç çalışmaz: ikinci kullanıcı üyelik veya rol kazanmaz', async () => {
@@ -156,56 +153,95 @@ describe('consumeInvite', () => {
     const secondUser = await db.user.findUniqueOrThrow({ where: { id: second.id } })
     expect(secondUser.globalRole).toBe('MEMBER')
   })
+
+  it('kontenjan dolunca claimInvite reddeder', async () => {
+    const { tokenHash } = await seedInvite({ maxUses: 2 })
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
+
+    const third = await claimInvite(tokenHash)
+    expect(third.ok).toBe(false)
+    if (!third.ok) expect(third.error.code).toBe('CONFLICT')
+  })
+
+  it('eşzamanlı iki claimInvite tek slotu paylaşmaz', async () => {
+    const { tokenHash } = await seedInvite({ maxUses: 1 })
+
+    const [a, b] = await Promise.all([claimInvite(tokenHash), claimInvite(tokenHash)])
+
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1)
+    expect(await db.inviteRedemption.count()).toBe(1)
+  })
+
+  it('aynı kullanıcının ikinci consumeInvite çağrısı slot yakmaz', async () => {
+    const { token, inviteId } = await seedInvite({ maxUses: 5 })
+    const user = await db.user.create({ data: { name: 'Tekrar', email: 't@x.com' } })
+
+    await consumeInvite(token, user.id)
+    const second = await consumeInvite(token, user.id)
+
+    expect(second).toEqual({ ok: true, data: { channelId } })
+    expect(await db.inviteRedemption.count({ where: { inviteId } })).toBe(1)
+  })
+
+  it('süresiz davet (expiresAt null) geçerlidir', async () => {
+    const { token } = await seedInvite({ expiresAt: null, maxUses: null })
+    const user = await db.user.create({ data: { name: 'Süresiz', email: 's@x.com' } })
+
+    expect((await consumeInvite(token, user.id)).ok).toBe(true)
+  })
 })
 
 describe('claimInvite', () => {
-  it('bilinmeyen hash için false döner', async () => {
-    await expect(claimInvite('bilinmeyen-hash')).resolves.toBe(false)
+  it('bilinmeyen hash için NOT_FOUND döner', async () => {
+    const r = await claimInvite('bilinmeyen-hash')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('NOT_FOUND')
   })
 
-  it('rezervasyon TTL süresi içindeyken ikinci rezervasyon denemesi false döner', async () => {
+  it('rezervasyon TTL süresi içindeyken ikinci rezervasyon denemesi CONFLICT döner', async () => {
     const { tokenHash } = await seedInvite()
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
-    await expect(claimInvite(tokenHash)).resolves.toBe(false)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(false)
   })
 
-  it('iptal edilmiş davet için false döner', async () => {
-    const { tokenHash } = await seedInvite({ revokedAt: new Date() })
-    await expect(claimInvite(tokenHash)).resolves.toBe(false)
+  it('iptal edilmiş davet için CONFLICT döner', async () => {
+    const { tokenHash } = await seedInvite({ disabledAt: new Date() })
+    expect((await claimInvite(tokenHash)).ok).toBe(false)
   })
 
-  it('süresi dolmuş davet için false döner', async () => {
+  it('süresi dolmuş davet için CONFLICT döner', async () => {
     const { tokenHash } = await seedInvite({ expiresAt: new Date(Date.now() - 1000) })
-    await expect(claimInvite(tokenHash)).resolves.toBe(false)
+    expect((await claimInvite(tokenHash)).ok).toBe(false)
   })
 
-  it('geçerli davet için tam olarak bir kez true döner', async () => {
+  it('geçerli davet için tam olarak bir kez başarılı döner', async () => {
     const { tokenHash } = await seedInvite()
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
-    await expect(claimInvite(tokenHash)).resolves.toBe(false)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(false)
   })
 
-  it('eşzamanlı iki çağrıdan yalnızca biri true döner', async () => {
+  it('eşzamanlı iki çağrıdan yalnızca biri başarılı döner', async () => {
     const { tokenHash } = await seedInvite()
 
     const [a, b] = await Promise.all([claimInvite(tokenHash), claimInvite(tokenHash)])
 
-    expect([a, b].filter(Boolean)).toHaveLength(1)
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1)
   })
 
   it('rezervasyon TTL süresi geçince yeniden rezerve edilebilir hale gelir (C1: davet kalıcı yanmaz)', async () => {
-    const { tokenHash } = await seedInvite()
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+    const { tokenHash, inviteId } = await seedInvite()
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
 
     // TTL'in geçmiş olduğunu simüle et: gerçek hayatta bu, signIn'in
     // rezerve ettiği ama createUser'ın (adaptör hatası, ağ kopması, Google
     // ekranında vazgeçme) hiç tamamlamadığı bir denemenin sonucu olur.
-    await db.invite.updateMany({
-      where: { tokenHash },
+    await db.inviteRedemption.updateMany({
+      where: { inviteId },
       data: { reservedAt: new Date(Date.now() - INVITE_RESERVATION_TTL_MS - 1000) },
     })
 
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
   })
 })
 
@@ -276,10 +312,12 @@ describe('applyInvite', () => {
     expect(conflicts).toHaveLength(1)
     if (!conflicts[0]?.ok) expect(conflicts[0]?.error.code).toBe('CONFLICT')
 
-    const invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
-    expect([userA.id, userB.id]).toContain(invite.usedByUserId)
+    const redemption = await db.inviteRedemption.findFirstOrThrow({
+      where: { inviteId, redeemedAt: { not: null } },
+    })
+    expect([userA.id, userB.id]).toContain(redemption.userId)
     // Kaybeden tarafta hiçbir yan etki (kanal üyeliği) oluşmamalı.
-    const loserId = invite.usedByUserId === userA.id ? userB.id : userA.id
+    const loserId = redemption.userId === userA.id ? userB.id : userA.id
     const loserMembership = await db.channelMember.findUnique({
       where: { channelId_userId: { channelId, userId: loserId } },
     })
@@ -292,31 +330,33 @@ describe('davet rezervasyonu — kayıt yolu ucu ucuna (C1)', () => {
     const { tokenHash, inviteId } = await seedInvite()
 
     // 1) signIn callback'i daveti rezerve eder (createUser'dan ÖNCE).
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
 
     // 2) createUser HİÇ ÇALIŞMAZ (adaptör hatası, ağ kopması, kullanıcı
     // Google ekranında vazgeçer...). `applyInvite` çağrılmaz. Davet henüz
     // kalıcı tüketilmiş DEĞİLDİR.
-    let invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
-    expect(invite.usedAt).toBeNull()
-    expect(invite.usedByUserId).toBeNull()
+    let rows = await redemptions(inviteId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.userId).toBeNull()
+    expect(rows[0]?.redeemedAt).toBeNull()
 
     // 3) TTL süresi geçer.
-    await db.invite.updateMany({
-      where: { id: inviteId },
+    await db.inviteRedemption.updateMany({
+      where: { inviteId },
       data: { reservedAt: new Date(Date.now() - INVITE_RESERVATION_TTL_MS - 1000) },
     })
 
     // 4) Kullanıcı aynı linki tekrar açar: ikinci deneme rezerve edip
     // başarıyla tamamlayabilir — davet "yanmamış".
-    await expect(claimInvite(tokenHash)).resolves.toBe(true)
+    expect((await claimInvite(tokenHash)).ok).toBe(true)
     const user = await db.user.create({ data: { name: 'İkinci Deneme', email: 'ikinci@x.com' } })
     const result = await applyInvite(inviteId, user.id)
     expect(result.ok).toBe(true)
 
-    invite = await db.invite.findUniqueOrThrow({ where: { id: inviteId } })
-    expect(invite.usedByUserId).toBe(user.id)
-    expect(invite.usedAt).not.toBeNull()
+    rows = await redemptions(inviteId)
+    const redeemed = rows.filter((r) => r.redeemedAt !== null)
+    expect(redeemed).toHaveLength(1)
+    expect(redeemed[0]?.userId).toBe(user.id)
   })
 
   it('eş zamanlı iki tam kayıt denemesi (rezerve + uygula) tek hesaba izin verir', async () => {
@@ -325,9 +365,9 @@ describe('davet rezervasyonu — kayıt yolu ucu ucuna (C1)', () => {
     const userB = await db.user.create({ data: { name: 'Eş B', email: 'esb@x.com' } })
 
     async function attemptRegistration(userId: string) {
-      const gotReservation = await claimInvite(tokenHash)
-      if (!gotReservation) return { ok: false as const }
-      return applyInvite(inviteId, userId)
+      const reservation = await claimInvite(tokenHash)
+      if (!reservation.ok) return reservation
+      return applyInvite(inviteId, userId, reservation.data.redemptionId)
     }
 
     const [a, b] = await Promise.all([attemptRegistration(userA.id), attemptRegistration(userB.id)])

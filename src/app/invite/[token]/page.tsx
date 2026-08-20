@@ -20,10 +20,17 @@ export default async function InvitePage({
   const failed = (await searchParams).hata === '1'
   const invite = await db.invite.findUnique({
     where: { tokenHash: hashInviteToken(token) },
-    include: { channel: true },
+    include: {
+      channel: true,
+      redemptions: { where: { redeemedAt: { not: null } }, select: { id: true } },
+    },
   })
 
-  const invalid = !invite || invite.usedAt || invite.revokedAt || invite.expiresAt < new Date()
+  const invalid =
+    !invite ||
+    invite.disabledAt !== null ||
+    (invite.expiresAt !== null && invite.expiresAt < new Date()) ||
+    (invite.maxUses !== null && invite.redemptions.length >= invite.maxUses)
   if (invalid) {
     // `hata=1`, onaylı kullanım denemesi (aşağıdaki imzalı kullanıcı formu)
     // başarısız olup buraya geri yönlendirdiğinde düşer — davet bu ana kadar

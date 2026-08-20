@@ -98,8 +98,10 @@ describe('kayıt yolu — signIn + adapter.createUser + events.createUser (C1 + 
     expect(membership).not.toBeNull()
 
     const invite = await db.invite.findUniqueOrThrow({ where: { tokenHash } })
-    expect(invite.usedByUserId).toBe(createdUser.id)
-    expect(invite.usedAt).not.toBeNull()
+    const rows = await db.inviteRedemption.findMany({ where: { inviteId: invite.id } })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.userId).toBe(createdUser.id)
+    expect(rows[0]?.redeemedAt).not.toBeNull()
   })
 
   it('kayıtlı kullanıcı ikinci kez girebilir — davet çerezi olmadan da', async () => {
@@ -167,12 +169,13 @@ describe('kayıt yolu — signIn + adapter.createUser + events.createUser (C1 + 
 
     // createUser hiç çalışmaz (adaptör hatası, ağ kopması...). Davet kalıcı
     // tüketilmemiş kalır.
-    let invite = await db.invite.findUniqueOrThrow({ where: { tokenHash } })
-    expect(invite.usedAt).toBeNull()
+    const invite = await db.invite.findUniqueOrThrow({ where: { tokenHash } })
+    let rows = await db.inviteRedemption.findMany({ where: { inviteId: invite.id } })
+    expect(rows.some((r) => r.redeemedAt !== null)).toBe(false)
 
     // TTL'i geçmiş gibi göster.
-    await db.invite.updateMany({
-      where: { tokenHash },
+    await db.inviteRedemption.updateMany({
+      where: { inviteId: invite.id },
       data: { reservedAt: new Date(Date.now() - 6 * 60 * 1000) },
     })
 
@@ -186,9 +189,10 @@ describe('kayıt yolu — signIn + adapter.createUser + events.createUser (C1 + 
     if (!createdUser) throw new Error('adapter.createUser tanımsız döndü')
     await authConfig.events?.createUser?.({ user: createdUser })
 
-    invite = await db.invite.findUniqueOrThrow({ where: { tokenHash } })
-    expect(invite.usedByUserId).toBe(createdUser.id)
-    expect(invite.usedAt).not.toBeNull()
+    rows = await db.inviteRedemption.findMany({ where: { inviteId: invite.id } })
+    const redeemed = rows.filter((r) => r.redeemedAt !== null)
+    expect(redeemed).toHaveLength(1)
+    expect(redeemed[0]?.userId).toBe(createdUser.id)
     expect(await db.user.count()).toBe(2) // founder + ikinci deneme
   })
 })

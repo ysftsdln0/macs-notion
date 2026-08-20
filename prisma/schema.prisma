@@ -120,7 +120,7 @@ model User {
   memberships    ChannelMember[]
   createdChannels Channel[]      @relation("ChannelCreatedBy")
   createdInvites Invite[]        @relation("InviteCreatedBy")
-  usedInvites    Invite[]        @relation("InviteUsedBy")
+  inviteRedemptions InviteRedemption[] @relation("InviteRedeemedBy")
   activities     Activity[]
   documents      Document[]      @relation("DocumentCreatedBy")
   documentShares DocumentShare[]
@@ -222,24 +222,51 @@ model Invite {
   globalRole  GlobalRole  @default(MEMBER)
   channelId   String?
   channelRole ChannelRole @default(MEMBER)
-  expiresAt   DateTime
+
+  // Davetin ne kadar yaşayacağı ve kaç kişiye açık olduğu üretim anında
+  // seçilir. null = sınır yok: `expiresAt` null ise süresiz, `maxUses` null
+  // ise kontenjansız. Kademe daveti bu ikisini kullanamaz — kural
+  // `src/server/invites.ts` içindeki superRefine'da.
+  label       String?
+  maxUses     Int?
+  expiresAt   DateTime?
+  // Kalıcı iptal DEĞİL, geri alınabilir kapatma: çok kullanımlı bir
+  // bağlantıyı "şimdilik durdur" diye yönetmenin yolu. Kullanılmış slotlar
+  // geri gelmez; devam ettirilen davet kalan kontenjanından sürer.
+  disabledAt  DateTime?
+
   createdById String?
   createdAt   DateTime    @default(now())
-  // Kalıcı kullanımdan (usedAt) AYRI bir alan: signIn callback'i daveti
-  // createUser'dan ÖNCE, kısa bir TTL için burada rezerve eder. createUser
-  // (adaptör hatası, ağ kopması, kullanıcının Google ekranında vazgeçmesi
-  // gibi) hiç tamamlanmazsa rezervasyon TTL sonunda kendiliğinden serbest
-  // kalır — davet kalıcı olarak yanmaz. Bkz. invite-service.ts.
-  reservedAt  DateTime?
-  usedByUserId String?
-  usedAt      DateTime?
-  revokedAt   DateTime?
 
-  channel    Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  createdBy  User?    @relation("InviteCreatedBy", fields: [createdById], references: [id])
-  usedBy     User?    @relation("InviteUsedBy", fields: [usedByUserId], references: [id])
+  channel     Channel?           @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdBy   User?              @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  redemptions InviteRedemption[]
 
   @@index([expiresAt])
+}
+
+// Bir davetin TEK bir kullanımı. Eskiden bu bilgi Invite satırındaki
+// usedAt/usedByUserId/reservedAt üçlüsündeydi ve davet başına tek kullanımı
+// yapısal olarak dayatıyordu.
+//
+// `userId` rezervasyon anında NULL'dur: signIn callback'i daveti createUser'dan
+// ÖNCE rezerve eder, kullanıcı satırı o an henüz yoktur. Postgres'te NULL'lar
+// unique kısıtta çakışmadığı için aynı davete ait birden çok açık rezervasyon
+// yan yana durabilir — eşzamanlı kayıt akışları için gereken tam olarak budur.
+// Kısıt userId bağlandıktan sonra devreye girer ve aynı kişinin aynı bağlantıyla
+// ikinci bir slot yakmasını imkânsız kılar.
+model InviteRedemption {
+  id         String    @id @default(cuid())
+  inviteId   String
+  userId     String?
+  reservedAt DateTime  @default(now())
+  redeemedAt DateTime?
+
+  invite Invite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User?  @relation("InviteRedeemedBy", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([inviteId, userId])
+  @@index([inviteId, reservedAt])
 }
 
 model Document {

@@ -44,9 +44,9 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
         const outstanding = await tx.invite.findFirst({
           where: {
             createdById: null,
-            usedAt: null,
-            revokedAt: null,
+            disabledAt: null,
             expiresAt: { gt: new Date() },
+            redemptions: { none: { redeemedAt: { not: null } } },
           },
         })
         if (outstanding) {
@@ -54,7 +54,7 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
             ok: false,
             reason:
               'Geçerli bir kurulum daveti zaten var. Onu kullan; yenisini üretmeden önce ' +
-              'veritabanında bu daveti iptal etmen (revokedAt) gerekir.',
+              'veritabanında bu daveti iptal etmen (disabledAt) gerekir.',
           }
         }
 
@@ -65,6 +65,8 @@ export async function seedBootstrapInvite(): Promise<SeedResult> {
             channelId: null,
             createdById: null,
             expiresAt: inviteExpiry(),
+            // null = sınırsız. Kurulum daveti tek sahibi açar.
+            maxUses: 1,
           },
         })
 

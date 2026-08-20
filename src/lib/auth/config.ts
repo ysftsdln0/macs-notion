@@ -46,7 +46,7 @@ export const authConfig: NextAuthConfig = {
       const store = await cookies()
       const token = store.get(INVITE_COOKIE)?.value
       if (!token) return false
-      return claimInvite(hashInviteToken(token))
+      return (await claimInvite(hashInviteToken(token))).ok
     },
     /**
      * Oturum yanıtı daraltılır. Ham adaptör satırı `sessionToken` içerir ve
@@ -69,8 +69,8 @@ export const authConfig: NextAuthConfig = {
     /**
      * `signIn` daveti rezerve etti ama kullanıcı henüz yoktu. Satır oluşunca
      * rol ve kanal üyeliği burada bağlanır VE rezervasyon kalıcı tüketime
-     * çevrilir (`applyInvite` içinde `usedAt`). Rezervasyon başarısız olsaydı
-     * bu noktaya hiç gelinmezdi.
+     * çevrilir (`applyInvite` içinde ilgili redemption satırının `redeemedAt`'i
+     * set edilir). Rezervasyon başarısız olsaydı bu noktaya hiç gelinmezdi.
      *
      * `applyInvite` burada BİLEREK try/catch içinde: Auth.js akışı
      * `createUser` → bu event → `linkAccount` → `createSession` şeklinde
@@ -80,9 +80,9 @@ export const authConfig: NextAuthConfig = {
      * ataması yapılmamış ama giriş yapabilen bir kullanıcı adminin
      * düzeltebileceği bir durumdur; bağlanamayan bir hesap değildir.
      *
-     * Not: bu hata durumunda davet kalıcı tüketilmemiş kalır (`usedAt` set
-     * edilmez, transaction hiç commit olmaz) — rezervasyon TTL sonunda
-     * kendiliğinden serbest kalır, davet yanmaz.
+     * Not: bu hata durumunda davet kalıcı tüketilmemiş kalır (redemption
+     * satırının `redeemedAt`'i set edilmez, transaction hiç commit olmaz) —
+     * rezervasyon TTL sonunda kendiliğinden serbest kalır, davet yanmaz.
      */
     async createUser({ user }) {
       if (!user.id) return
@@ -92,7 +92,7 @@ export const authConfig: NextAuthConfig = {
       const invite = await db.invite.findUnique({
         where: { tokenHash: hashInviteToken(token) },
       })
-      if (!invite || invite.usedByUserId) return
+      if (!invite) return
       try {
         const result = await applyInvite(invite.id, user.id)
         // `CONFLICT` artık gerçekten ulaşılabilir: rezervasyon TTL'i geçip

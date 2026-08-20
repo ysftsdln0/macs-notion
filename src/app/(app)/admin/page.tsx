@@ -8,19 +8,26 @@ import { PageContainer, PageHeader, SectionHeading } from '@/components/layout/p
 import { CreateInviteForm } from './create-invite-form'
 import { RevokeInviteButton } from './revoke-invite-button'
 
-function inviteStatus(invite: {
-  usedBy: { name: string } | null
-  revokedAt: Date | null
-  expiresAt: Date
-}): string {
-  if (invite.usedBy) return `kullanıldı: ${invite.usedBy.name}`
-  if (invite.revokedAt) return 'iptal edildi'
-  if (invite.expiresAt < new Date()) return 'süresi doldu'
+type InviteRow = {
+  maxUses: number | null
+  expiresAt: Date | null
+  disabledAt: Date | null
+  redemptions: { redeemedAt: Date | null }[]
+}
+
+function usedCount(invite: InviteRow): number {
+  return invite.redemptions.filter((r) => r.redeemedAt !== null).length
+}
+
+function inviteStatus(invite: InviteRow): string {
+  if (invite.disabledAt) return 'duraklatıldı'
+  if (invite.expiresAt && invite.expiresAt < new Date()) return 'süresi doldu'
+  if (invite.maxUses !== null && usedCount(invite) >= invite.maxUses) return 'kontenjan doldu'
   return 'bekliyor'
 }
 
-function isPending(invite: { usedByUserId: string | null; revokedAt: Date | null; expiresAt: Date }): boolean {
-  return !invite.usedByUserId && !invite.revokedAt && invite.expiresAt >= new Date()
+function isPending(invite: InviteRow): boolean {
+  return inviteStatus(invite) === 'bekliyor'
 }
 
 // Bu route'a KASITLI OLARAK loading.tsx eklenmez: notFound() render sırasında
@@ -34,7 +41,10 @@ export default async function AdminPage() {
   const [invites, channels] = await Promise.all([
     db.invite.findMany({
       orderBy: { createdAt: 'desc' }, take: 50,
-      include: { channel: { select: { name: true } }, usedBy: { select: { name: true } } },
+      include: {
+        channel: { select: { name: true } },
+        redemptions: { select: { redeemedAt: true } },
+      },
     }),
     db.channel.findMany({ where: { archivedAt: null }, orderBy: { name: 'asc' } }),
   ])

@@ -41,6 +41,9 @@ export const createInvite = defineAction({
         channelRole: input.channelRole,
         expiresAt: inviteExpiry(),
         createdById: actor.id,
+        // Bugünkü davranış açıkça yazılır: davet hâlâ tek kullanımlık.
+        // Girdi olarak seçilebilir hâle gelmesi Task 3'te.
+        maxUses: 1,
       },
     })
     await recordActivity(db, {
@@ -59,7 +62,7 @@ export const revokeInvite = defineAction({
   handler: async ({ actor, input }) => {
     await db.invite.update({
       where: { id: input.inviteId },
-      data: { revokedAt: new Date() },
+      data: { disabledAt: new Date() },
     })
     await recordActivity(db, {
       actorId: actor.id, verb: 'invite.revoked',
