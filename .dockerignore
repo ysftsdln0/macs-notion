@@ -6,6 +6,12 @@ node_modules
 !.env.example
 coverage
 tests
+# İki kök yapılandırma dosyası (playwright.config.ts, vitest.config.ts) imajda
+# kalıyor ve tsconfig'in `**/*.ts` include'u onları `next build`in tip
+# kontrolüne sokuyor. Bu tek dosya dışlanırsa build TS2307 ile düşer —
+# hata yalnızca imaj içinde görülür, yerelde `tests/` yerinde durduğu için
+# `pnpm build` temiz geçer.
+!tests/helpers/test-database-url.ts
 docs
 README.md
 .github
