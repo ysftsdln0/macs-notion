@@ -20,12 +20,39 @@ test('süresi dolmuş davet reddedilir', async ({ page }) => {
   })
 
   await page.goto(`/invite/${token}`)
-  await expect(page.getByText('Davet geçersiz')).toBeVisible()
+  await expect(page.getByText('süresi doldu')).toBeVisible()
 })
 
 test("bilinmeyen davet token'ı geçersiz sayfası gösterir", async ({ page }) => {
   await page.goto('/invite/gecersiz-token-123')
-  await expect(page.getByText('Davet geçersiz')).toBeVisible()
+  await expect(page.getByText('Bu bağlantı geçersiz')).toBeVisible()
+})
+
+test('duraklatılmış davet gerekçesiyle reddedilir', async ({ page }) => {
+  const { token, tokenHash } = createInviteToken()
+  await db.invite.create({
+    data: { tokenHash, expiresAt: new Date(Date.now() + 864e5), disabledAt: new Date() },
+  })
+
+  await page.goto(`/invite/${token}`)
+  await expect(page.getByText('Bu davet şu anda kapalı')).toBeVisible()
+})
+
+test('kontenjanı dolmuş davet gerekçesiyle reddedilir', async ({ page }) => {
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`
+  const { token, tokenHash } = createInviteToken()
+  const invite = await db.invite.create({
+    data: { tokenHash, expiresAt: new Date(Date.now() + 864e5), maxUses: 1 },
+  })
+  const user = await db.user.create({
+    data: { name: 'Dolduran', email: `d-${stamp}@x.com` },
+  })
+  await db.inviteRedemption.create({
+    data: { inviteId: invite.id, userId: user.id, redeemedAt: new Date() },
+  })
+
+  await page.goto(`/invite/${token}`)
+  await expect(page.getByText('kontenjanı doldu')).toBeVisible()
 })
 
 test('çok kullanımlı davet listede kullanım sayısıyla görünür', async ({ page }) => {

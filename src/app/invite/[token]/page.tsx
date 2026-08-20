@@ -26,12 +26,27 @@ export default async function InvitePage({
     },
   })
 
-  const invalid =
-    !invite ||
-    invite.disabledAt !== null ||
-    (invite.expiresAt !== null && invite.expiresAt < new Date()) ||
-    (invite.maxUses !== null && invite.redemptions.length >= invite.maxUses)
-  if (invalid) {
+  /**
+   * Tek "geçersiz" mesajı yeterliydi, artık değil: çok kullanımlı ve
+   * duraklatılabilir davetlerde davetlinin ne yapması gerektiği sebebe
+   * göre değişiyor (bekle / yönetime sor / yeni link iste).
+   */
+  function invalidReason(): string | null {
+    if (!invite) return 'Bu bağlantı geçersiz. Kulüp yönetiminden yeni bir link iste.'
+    if (invite.disabledAt) return 'Bu davet şu anda kapalı. Kulüp yönetimine sor.'
+    if (invite.expiresAt && invite.expiresAt < new Date()) {
+      return 'Bu davetin süresi doldu. Kulüp yönetiminden yeni bir link iste.'
+    }
+    if (invite.maxUses !== null && invite.redemptions.length >= invite.maxUses) {
+      return 'Bu davetin kontenjanı doldu. Kulüp yönetiminden yeni bir link iste.'
+    }
+    return null
+  }
+
+  const reason = invalidReason()
+  // `!invite` koşulu ayrıca yazılır: reason bir fonksiyondan geldiği için
+  // TypeScript aşağıdaki dallarda `invite`'ı kendiliğinden daraltamıyor.
+  if (!invite || reason) {
     // `hata=1`, onaylı kullanım denemesi (aşağıdaki imzalı kullanıcı formu)
     // başarısız olup buraya geri yönlendirdiğinde düşer — davet bu ana kadar
     // zaten geçersiz hale gelmiştir (başka biri kapmıştır), o yüzden bu mesaj
@@ -39,10 +54,10 @@ export default async function InvitePage({
     return (
       <AuthShell>
         <div className="space-y-6 text-center">
-          <AuthHeading icon={AlertTriangle} tone="destructive" title="Davet geçersiz">
+          <AuthHeading icon={AlertTriangle} tone="destructive" title="Davet kullanılamıyor">
             {failed
-              ? 'Davet kullanılamadı. Kullanılmış, iptal edilmiş veya süresi dolmuş olabilir.'
-              : 'Bu davet kullanılmış, iptal edilmiş veya süresi dolmuş. Kulüp yönetiminden yeni bir link iste.'}
+              ? 'Davet kullanılamadı. Bu sırada başkası kullanmış ya da kapatılmış olabilir.'
+              : reason}
           </AuthHeading>
         </div>
       </AuthShell>
@@ -56,6 +71,13 @@ export default async function InvitePage({
   // gezinmede gönderilir).
   const actor = await getActor()
   if (actor) {
+    // Daveti zaten kullanmış: onay formu göstermek yanıltıcı olurdu, kabul
+    // etse de yeni bir slot yakmayacak (consumeInvite idempotent).
+    const already = await db.inviteRedemption.findUnique({
+      where: { inviteId_userId: { inviteId: invite.id, userId: actor.id } },
+    })
+    if (already) redirect('/')
+
     return (
       <AuthShell>
         <div className="space-y-6 text-center">
