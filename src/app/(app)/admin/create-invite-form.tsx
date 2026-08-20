@@ -6,6 +6,8 @@ import { createInvite } from '@/server/invites'
 import {
   DEFAULT_INVITE_DURATION,
   INVITE_DURATION_LABELS,
+  INVITE_USE_LIMIT_LABELS,
+  INVITE_USE_LIMITS,
   type InviteDuration,
 } from '@/lib/auth/invite-token'
 import { Button } from '@/components/ui/button'
@@ -30,6 +32,7 @@ export function CreateInviteForm({
   const [channelId, setChannelId] = useState<string>('none')
   const [channelRole, setChannelRole] = useState<'LEAD' | 'MEMBER'>('MEMBER')
   const [duration, setDuration] = useState<InviteDuration>(DEFAULT_INVITE_DURATION)
+  const [maxUses, setMaxUses] = useState<number | null>(1)
   const [error, setError] = useState<string | null>(null)
   // Ham davet bağlantısı yalnızca burada, bir kez tutulur — sunucuya
   // geri gönderilmez, loglanmaz, veritabanında yalnızca hash'i durur.
@@ -47,6 +50,7 @@ export function CreateInviteForm({
         channelId: channelId === 'none' ? null : channelId,
         channelRole,
         duration,
+        maxUses,
       })
       if (!result.ok) {
         setError(result.error.message)
@@ -115,6 +119,22 @@ export function CreateInviteForm({
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1">
+          <Label>Kullanım limiti</Label>
+          <Select
+            value={maxUses === null ? 'unlimited' : String(maxUses)}
+            onValueChange={(v) => setMaxUses(v === 'unlimited' ? null : Number(v))}
+          >
+            <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {INVITE_USE_LIMITS.map((limit) => (
+                <SelectItem key={limit ?? 'unlimited'} value={limit === null ? 'unlimited' : String(limit)}>
+                  {INVITE_USE_LIMIT_LABELS.get(limit)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? 'Oluşturuluyor…' : 'Davet oluştur'}
         </Button>
@@ -123,7 +143,9 @@ export function CreateInviteForm({
       {generatedUrl && (
         <div className="space-y-1 rounded-lg bg-muted p-3">
           <p className="text-xs text-muted-foreground">
-            Bu bağlantı yalnızca bir kez gösterilir — şimdi kopyala, sayfadan ayrılınca tekrar erişemezsin.
+            {maxUses === 1
+              ? 'Bu bağlantı yalnızca bir kez gösterilir — şimdi kopyala, sayfadan ayrılınca tekrar erişemezsin.'
+              : 'Bu bağlantı yalnızca bir kez gösterilir ve tekrar üretilemez. Birden çok kişiye dağıtacaksan ŞİMDİ güvenli bir yere kaydet — kaybedersen yeni bir davet oluşturman gerekir.'}
           </p>
           <div className="flex items-center gap-2">
             <Input readOnly value={generatedUrl} className="font-mono text-xs" />

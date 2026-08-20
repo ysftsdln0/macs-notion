@@ -168,4 +168,43 @@ describe('createInvite', () => {
     const invite = await db.invite.findFirstOrThrow()
     expect(invite.expiresAt!.getTime() - Date.now()).toBeGreaterThan(6.9 * 864e5)
   })
+
+  it('kullanım limiti davete yazılır', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', maxUses: 25,
+    })
+
+    expect((await db.invite.findFirstOrThrow()).maxUses).toBe(25)
+  })
+
+  it('null limit sınırsız davet üretir', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', maxUses: null,
+    })
+
+    expect((await db.invite.findFirstOrThrow()).maxUses).toBeNull()
+  })
+
+  it('limit verilmezse tek kullanımlıktır', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({ globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER' })
+
+    expect((await db.invite.findFirstOrThrow()).maxUses).toBe(1)
+  })
+
+  it('sıfır veya negatif limit reddedilir', async () => {
+    actorRef.current = admin.id
+
+    const r = await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', maxUses: 0,
+    })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('VALIDATION')
+  })
 })

@@ -48,3 +48,17 @@ export function inviteExpiry(duration: InviteDuration = DEFAULT_INVITE_DURATION)
   const ms = INVITE_DURATIONS[duration]
   return ms === null ? null : new Date(Date.now() + ms)
 }
+
+/**
+ * Formda sunulan kullanım limitleri. `null` = sınırsız. Sunucu bu listeyle
+ * sınırlı değildir (pozitif tam sayı yeter) — liste yalnızca arayüzün seçim
+ * kümesi ve etiketleri.
+ */
+export const INVITE_USE_LIMITS = [1, 5, 25, null] as const
+
+export const INVITE_USE_LIMIT_LABELS = new Map<number | null, string>([
+  [1, '1 kişi'],
+  [5, '5 kişi'],
+  [25, '25 kişi'],
+  [null, 'Sınırsız'],
+])

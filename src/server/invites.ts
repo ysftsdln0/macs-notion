@@ -22,6 +22,7 @@ export const createInvite = defineAction({
     duration: z
       .enum(Object.keys(INVITE_DURATIONS) as [InviteDuration, ...InviteDuration[]])
       .default(DEFAULT_INVITE_DURATION),
+    maxUses: z.number().int().positive().nullable().default(1),
   }),
   getActor,
   authorize: async ({ actor, input }) => {
@@ -50,9 +51,7 @@ export const createInvite = defineAction({
         channelRole: input.channelRole,
         expiresAt: inviteExpiry(input.duration),
         createdById: actor.id,
-        // Bugünkü davranış açıkça yazılır: davet hâlâ tek kullanımlık.
-        // Girdi olarak seçilebilir hâle gelmesi Task 3'te.
-        maxUses: 1,
+        maxUses: input.maxUses,
       },
     })
     await recordActivity(db, {
