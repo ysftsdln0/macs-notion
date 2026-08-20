@@ -12,11 +12,17 @@ type InviteRow = {
   maxUses: number | null
   expiresAt: Date | null
   disabledAt: Date | null
-  redemptions: { redeemedAt: Date | null }[]
+  redemptions: { redeemedAt: Date | null; user: { name: string } | null }[]
 }
 
+// Sorgu yalnızca tüketilmiş satırları çekiyor — sayı uzunluğun kendisi.
 function usedCount(invite: InviteRow): number {
-  return invite.redemptions.filter((r) => r.redeemedAt !== null).length
+  return invite.redemptions.length
+}
+
+function usageText(invite: InviteRow): string {
+  const used = usedCount(invite)
+  return invite.maxUses === null ? `${used} kullanım` : `${used}/${invite.maxUses} kullanıldı`
 }
 
 function inviteStatus(invite: InviteRow): string {
@@ -44,7 +50,11 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' }, take: 50,
       include: {
         channel: { select: { name: true } },
-        redemptions: { select: { redeemedAt: true } },
+        redemptions: {
+          where: { redeemedAt: { not: null } },
+          orderBy: { redeemedAt: 'asc' },
+          select: { redeemedAt: true, user: { select: { name: true } } },
+        },
       },
     }),
     db.channel.findMany({ where: { archivedAt: null }, orderBy: { name: 'asc' } }),
@@ -98,11 +108,18 @@ export default async function AdminPage() {
         ) : (
           <ul className="space-y-1 text-sm">
             {invites.map((i) => (
-              <li key={i.id} className="flex items-center justify-between gap-2">
-                <span>
-                  {i.label ? `${i.label} · ` : ''}
-                  {i.channel?.name ?? 'Kanalsız'} · {inviteStatus(i)}
-                </span>
+              <li key={i.id} className="flex items-start justify-between gap-2">
+                <div className="space-y-0.5">
+                  <p>
+                    {i.label ? `${i.label} · ` : ''}
+                    {i.channel?.name ?? 'Kanalsız'} · {usageText(i)} · {inviteStatus(i)}
+                  </p>
+                  {i.redemptions.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {i.redemptions.map((r) => r.user?.name ?? 'Silinmiş üye').join(', ')}
+                    </p>
+                  )}
+                </div>
                 {canToggle(i) && (
                   <ToggleInviteButton inviteId={i.id} disabled={i.disabledAt !== null} />
                 )}
