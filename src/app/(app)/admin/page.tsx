@@ -99,6 +99,7 @@ export default async function AdminPage() {
             {invites.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-2">
                 <span>
+                  {i.label ? `${i.label} · ` : ''}
                   {i.channel?.name ?? 'Kanalsız'} · {inviteStatus(i)}
                 </span>
                 {isPending(i) && <RevokeInviteButton inviteId={i.id} />}

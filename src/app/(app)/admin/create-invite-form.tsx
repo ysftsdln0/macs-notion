@@ -35,6 +35,7 @@ export function CreateInviteForm({
   const [channelRole, setChannelRole] = useState<'LEAD' | 'MEMBER'>('MEMBER')
   const [duration, setDuration] = useState<InviteDuration>(DEFAULT_INVITE_DURATION)
   const [maxUses, setMaxUses] = useState<number | null>(1)
+  const [label, setLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
   // Ham davet bağlantısı yalnızca burada, bir kez tutulur — sunucuya
   // geri gönderilmez, loglanmaz, veritabanında yalnızca hash'i durur.
@@ -64,12 +65,14 @@ export function CreateInviteForm({
         channelRole,
         duration,
         maxUses,
+        label,
       })
       if (!result.ok) {
         setError(result.error.message)
         return
       }
       setGeneratedUrl(result.data.url)
+      setLabel('')
       router.refresh()
     })
   }
@@ -158,6 +161,17 @@ export function CreateInviteForm({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="invite-label">Etiket</Label>
+          <Input
+            id="invite-label"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            maxLength={60}
+            placeholder="Bahar standı"
+            className="h-8 w-48 text-sm"
+          />
         </div>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? 'Oluşturuluyor…' : 'Davet oluştur'}

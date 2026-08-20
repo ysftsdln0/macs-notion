@@ -203,6 +203,37 @@ describe('createInvite', () => {
     expect((await db.invite.findFirstOrThrow()).maxUses).toBe(1)
   })
 
+  it('etiket davete yazılır', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', label: 'Bahar standı',
+    })
+
+    expect((await db.invite.findFirstOrThrow()).label).toBe('Bahar standı')
+  })
+
+  it('boş etiket null olarak saklanır', async () => {
+    actorRef.current = admin.id
+
+    await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', label: '   ',
+    })
+
+    expect((await db.invite.findFirstOrThrow()).label).toBeNull()
+  })
+
+  it('60 karakterden uzun etiket reddedilir', async () => {
+    actorRef.current = admin.id
+
+    const r = await createInvite({
+      globalRole: 'MEMBER', channelId: null, channelRole: 'MEMBER', label: 'a'.repeat(61),
+    })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.code).toBe('VALIDATION')
+  })
+
   it('sıfır veya negatif limit reddedilir', async () => {
     actorRef.current = admin.id
 

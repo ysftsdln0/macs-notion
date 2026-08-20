@@ -24,6 +24,7 @@ export const createInvite = defineAction({
       .enum(Object.keys(INVITE_DURATIONS) as [InviteDuration, ...InviteDuration[]])
       .default(DEFAULT_INVITE_DURATION),
     maxUses: z.number().int().positive().nullable().default(1),
+    label: z.string().trim().max(60, 'Etiket en fazla 60 karakter olabilir.').nullable().default(null),
   })
     /**
      * Davet, kademe dağıtmanın ikinci kapısıdır: `/invite/<token>` sayfası
@@ -79,6 +80,9 @@ export const createInvite = defineAction({
         expiresAt: inviteExpiry(input.duration),
         createdById: actor.id,
         maxUses: input.maxUses,
+        // Boş/boşluk-dolu etiket null'a düşer: listede "· ·" gibi boş bir
+        // ayraç yerine hiç etiket olmaması doğru.
+        label: input.label || null,
       },
     })
     await recordActivity(db, {
